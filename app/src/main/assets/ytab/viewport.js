@@ -12,7 +12,7 @@
     document.querySelectorAll('meta[name="viewport"]').forEach(m => m.remove());
     const m = document.createElement('meta');
     m.name = 'viewport';
-    m.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
+    m.content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, viewport-fit=cover';
     m.setAttribute('data-malkkeum', '');
     head.prepend(m);
   }
@@ -30,14 +30,21 @@
       width: 100% !important; max-width: 100% !important; box-sizing: border-box !important;
     }
     ytd-app { --ytd-scrollbar-width: 0px !important; --ytd-persistent-guide-width: 0px !important; }
-    /* 원인과 상관없이 목록 폭을 화면 폭(100vw) 그대로 */
+    /* 화면보다 넓게 잡혀 전체가 축소되는 걸 막기: 위쪽 막대·칩 줄 등 넓은 부분을 화면 폭 안으로 */
+    #masthead-container, ytd-masthead, ytd-masthead #container, #frosted-glass,
+    ytd-feed-filter-chip-bar-renderer, #chips-wrapper, iron-selector#chips,
+    ytd-rich-grid-renderer > #header, #contents-container {
+      min-width: 0 !important; max-width: 100% !important; box-sizing: border-box !important;
+    }
+    ytd-masthead #end, ytd-masthead #start { min-width: 0 !important; }
+    /* 목록 폭은 화면 폭 그대로 */
     ytd-page-manager, ytd-browse, ytd-two-column-browse-results-renderer, ytd-two-column-browse-results-renderer > #primary,
     ytd-rich-grid-renderer, ytd-rich-grid-renderer > #contents {
-      width: 100vw !important; max-width: 100vw !important; min-width: 0 !important;
+      width: 100% !important; max-width: 100% !important; min-width: 0 !important;
       margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important;
     }
     ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer:not([is-slim-media]) {
-      width: 100vw !important; max-width: 100vw !important; margin-left: 0 !important; margin-right: 0 !important;
+      width: 100% !important; max-width: 100% !important; margin-left: 0 !important; margin-right: 0 !important;
     }
     body { padding-bottom: ${NAV_H}px !important; }
 
@@ -239,6 +246,21 @@
       if (!el) continue;
       const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
       parts.push(`${sel.replace('ytd-', '')}: x${Math.round(r.left)} w${Math.round(r.width)} m${cs.marginRight} p${cs.paddingRight}`);
+    }
+    const cw = document.documentElement.clientWidth;
+    parts.push(`scrollWidth ${document.documentElement.scrollWidth}`);
+    const wide = [];
+    for (const el of document.querySelectorAll('body *')) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.right > cw + 1) {
+        if (![...wide].some(w => w.el.contains(el))) wide.push({ el, right: Math.round(r.right), w: Math.round(r.width) });
+        if (wide.length >= 6) break;
+      }
+    }
+    for (const w of wide) {
+      const e = w.el;
+      const name = e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (e.classList.length ? '.' + [...e.classList].slice(0, 2).join('.') : '');
+      parts.push(`넘침 ${name} right${w.right} w${w.w}`);
     }
     const ir = item.getBoundingClientRect();
     parts.push(`item: x${Math.round(ir.left)} w${Math.round(ir.width)}`);
