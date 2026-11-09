@@ -18,10 +18,12 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/app_name"
+            android:fontFamily="@font/roboto_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="-0.04"
+            android:text="@string/title_logo"
             android:textColor="?attr/colorOnSurface"
-            android:textSize="19sp"
-            android:textStyle="bold" />
+            android:textSize="21sp" />
 
         <TextView
             android:id="@+id/counter"

@@ -4,7 +4,9 @@
         <item name="colorPrimary">@color/accent</item>
         <item name="colorSecondary">@color/accent</item>
         <item name="colorAccent">@color/accent</item>
-        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <!-- 상단바(시간·와이파이 표시 줄): 검은 배경 + 흰 아이콘 -->
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
         <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>

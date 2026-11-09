@@ -51,6 +51,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // 상단바 아이콘(시간·와이파이)을 흰색으로 (배경은 테마에서 검정)
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
 
         geckoView = findViewById(R.id.gecko)
         topBar = findViewById(R.id.topBar)
@@ -231,6 +233,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 topBar.visibility = View.VISIBLE
                 controller.show(WindowInsetsCompat.Type.systemBars())
+                controller.isAppearanceLightStatusBars = false
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
         }

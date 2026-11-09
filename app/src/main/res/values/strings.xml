@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">말끔</string>
+    <string name="title_logo" translatable="false">Malkkeum</string>
     <string name="block">차단</string>
     <string name="log">기록</string>
     <string name="back_to_youtube">유튜브로</string>
