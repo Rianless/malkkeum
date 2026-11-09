@@ -51,6 +51,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // 엔진 파일을 압축해서 넣어 APK 용량을 줄여요.
+    packaging {
+        jniLibs { useLegacyPackaging = true }
+    }
+
     lint {
         checkReleaseBuilds = false
         abortOnError = false
