@@ -29,6 +29,15 @@
       width: 100% !important; max-width: 100% !important; box-sizing: border-box !important;
     }
     ytd-app { --ytd-scrollbar-width: 0px !important; --ytd-persistent-guide-width: 0px !important; }
+    /* 원인과 상관없이 목록 폭을 화면 폭(100vw) 그대로 */
+    ytd-page-manager, ytd-browse, ytd-two-column-browse-results-renderer, ytd-two-column-browse-results-renderer > #primary,
+    ytd-rich-grid-renderer, ytd-rich-grid-renderer > #contents {
+      width: 100vw !important; max-width: 100vw !important; min-width: 0 !important;
+      margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important;
+    }
+    ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer:not([is-slim-media]) {
+      width: 100vw !important; max-width: 100vw !important; margin-left: 0 !important; margin-right: 0 !important;
+    }
     body { padding-bottom: ${NAV_H}px !important; }
 
     /* 위쪽 막대: 얇게, 폰에서 안 쓰는 버튼 숨김 */
@@ -214,7 +223,35 @@
     else document.documentElement.removeAttribute('data-malkkeum-fs');
   }
 
-  function apply() { addViewport(); addStyle(); addNav(); markNav(); }
+  // ---------- 진단: 어느 부분이 화면보다 좁은지 폭 재기 ----------
+  let measuredFor = '';
+  function measure() {
+    if (measuredFor === location.pathname) return;
+    const item = document.querySelector('ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer:not([is-slim-media])');
+    if (!item) return;
+    measuredFor = location.pathname;
+    const sels = ['html', 'body', 'ytd-app', 'ytd-page-manager', 'ytd-browse', 'ytd-two-column-browse-results-renderer',
+      'ytd-rich-grid-renderer', 'ytd-rich-grid-renderer > #contents'];
+    const parts = [`화면 ${window.innerWidth} / html.client ${document.documentElement.clientWidth}`];
+    for (const sel of sels) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
+      parts.push(`${sel.replace('ytd-', '')}: x${Math.round(r.left)} w${Math.round(r.width)} m${cs.marginRight} p${cs.paddingRight}`);
+    }
+    const ir = item.getBoundingClientRect();
+    parts.push(`item: x${Math.round(ir.left)} w${Math.round(ir.width)}`);
+    const th = item.querySelector('a#thumbnail, yt-thumbnail-view-model, ytd-thumbnail, a');
+    if (th) { const tr = th.getBoundingClientRect(); parts.push(`thumb: x${Math.round(tr.left)} w${Math.round(tr.width)}`); }
+    try {
+      chrome.storage.local.get('diag', d => {
+        const list = (d.diag || []).concat(parts.map(p => ({ t: 0, e: '폭', d: p, at: Date.now() })));
+        chrome.storage.local.set({ diag: list.slice(-400) });
+      });
+    } catch (e) { /* 무시 */ }
+  }
+
+  function apply() { addViewport(); addStyle(); addNav(); markNav(); setTimeout(measure, 2500); }
   apply();
   new MutationObserver(apply).observe(document.documentElement, { childList: true, subtree: false });
   document.addEventListener('DOMContentLoaded', apply);
