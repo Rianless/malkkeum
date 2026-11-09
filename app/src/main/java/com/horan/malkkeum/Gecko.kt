@@ -2,6 +2,7 @@ package com.horan.malkkeum
 
 import android.content.Context
 import android.util.Log
+import java.io.File
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoRuntimeSettings
 import org.mozilla.geckoview.WebExtension
@@ -24,8 +25,20 @@ object Gecko {
 
     fun runtime(context: Context): GeckoRuntime {
         runtime?.let { return it }
+        // 엔진 설정 파일: 스크롤바가 자리를 차지하지 않고 화면 위에 떠 있게 (PC 유튜브의 오른쪽 빈 띠 제거)
+        val config = File(context.filesDir, "geckoview-config.yaml")
+        try {
+            config.writeText(
+                "prefs:\n" +
+                "  ui.useOverlayScrollbars: 1\n" +
+                "  widget.non-native-theme.scrollbar.size.override: 0\n"
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "엔진 설정 파일 쓰기 실패", e)
+        }
         val settings = GeckoRuntimeSettings.Builder()
             .consoleOutput(true)
+            .configFilePath(config.absolutePath)
             .build()
         return GeckoRuntime.create(context.applicationContext, settings).also { runtime = it }
     }

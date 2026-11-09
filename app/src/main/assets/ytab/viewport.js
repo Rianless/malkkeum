@@ -22,7 +22,8 @@
   const css = `
     html, body, ytd-app { min-width: 0 !important; }
     /* PC용 스크롤바 자리(오른쪽 빈 띠) 없애기: 화면 폭에 딱 맞게 */
-    html, body { scrollbar-width: none !important; overflow-x: hidden !important; }
+    html, body { scrollbar-width: none !important; scrollbar-gutter: auto !important; overflow-x: hidden !important; }
+    html { overflow-y: auto !important; }
     html::-webkit-scrollbar, body::-webkit-scrollbar { display: none !important; width: 0 !important; }
     ytd-app, ytd-page-manager, ytd-browse, ytd-rich-grid-renderer, ytd-rich-grid-renderer > #contents,
     ytd-two-column-browse-results-renderer, ytd-watch-flexy {
@@ -227,7 +228,7 @@
   let measuredFor = '';
   function measure() {
     if (measuredFor === location.pathname) return;
-    const item = document.querySelector('ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer:not([is-slim-media])');
+    const item = [...document.querySelectorAll('ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer:not([is-slim-media])')].find(el => el.getBoundingClientRect().width > 0);
     if (!item) return;
     measuredFor = location.pathname;
     const sels = ['html', 'body', 'ytd-app', 'ytd-page-manager', 'ytd-browse', 'ytd-two-column-browse-results-renderer',
