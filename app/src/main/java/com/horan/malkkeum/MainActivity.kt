@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pcButton: MaterialButton
     private val prefs by lazy { getSharedPreferences("malkkeum", MODE_PRIVATE) }
     private var pcMode: Boolean
-        get() = prefs.getBoolean("pcMode", false)
+        get() = prefs.getBoolean("pcMode", true)
         set(v) { prefs.edit().putBoolean("pcMode", v).apply() }
     private val home get() = if (pcMode) HOME_PC else HOME_MOBILE
 
@@ -169,8 +169,8 @@ class MainActivity : AppCompatActivity() {
     private fun applyPcMode() {
         mainSession.settings.userAgentMode =
             if (pcMode) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
-        mainSession.settings.viewportMode =
-            if (pcMode) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP else GeckoSessionSettings.VIEWPORT_MODE_MOBILE
+        // 화면은 PC/모바일 모두 폰 폭으로 (PC 유튜브는 viewport.js가 폰 폭에 맞춤)
+        mainSession.settings.viewportMode = GeckoSessionSettings.VIEWPORT_MODE_MOBILE
         pcButton.setText(if (pcMode) R.string.pc_on else R.string.pc_off)
     }
 

@@ -19,6 +19,7 @@
         "*://*.youtube.com/*"
       ],
       "js": [
+        "viewport.js",
         "content.js",
         "app-bridge.js"
       ],
