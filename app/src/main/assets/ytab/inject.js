@@ -28,6 +28,37 @@
     window.postMessage({ __ytab: true, ...payload }, location.origin);
   }
 
+  // ---------- 진단 기록: 영상을 열고 재생되기까지 무슨 일이 언제 일어나는지 ----------
+  let navAt = performance.now();
+  let diagBuf = [];
+  function diag(e, d) {
+    diagBuf.push({ t: Math.round(performance.now() - navAt), e, d: d || '' });
+  }
+  setInterval(() => {
+    if (diagBuf.length) { report({ type: 'diag', items: diagBuf }); diagBuf = []; }
+  }, 1000);
+  let lastHref = location.href;
+  setInterval(() => {
+    if (location.href !== lastHref) {
+      lastHref = location.href;
+      navAt = performance.now();
+      nudged = false;
+      diag('nav', location.pathname + location.search.slice(0, 20));
+    }
+  }, 100);
+  let nudged = false;
+  let foundKeys = [];
+  function describe(obj, where) {
+    try {
+      const pr = obj && (obj.playabilityStatus ? obj : obj.playerResponse);
+      const parts = [where];
+      if (foundKeys.length) parts.push('광고데이터:' + [...new Set(foundKeys)].join('/'));
+      if (pr && pr.playabilityStatus) parts.push('상태:' + pr.playabilityStatus.status);
+      if (pr && pr.streamingData) parts.push(pr.streamingData.serverAbrStreamingUrl ? 'SABR' : 'stream');
+      return parts.join(' ');
+    } catch (e) { return where; }
+  }
+
   // ---------- 1. 데이터 단계에서 광고 제거 (강화판) ----------
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
   // enforcementMessageViewModel = "광고 차단기 사용 중" 경고창
@@ -49,6 +80,7 @@
       for (const k of AD_KEYS) {
         if (k in obj) {
           pendingStripped += Array.isArray(obj[k]) ? obj[k].length : 1;
+          foundKeys.push(k);
           delete obj[k];
         }
       }
@@ -90,13 +122,26 @@
   const origJson = Response.prototype.json;
   Response.prototype.json = async function (...args) {
     const r = await origJson.apply(this, args);
-    try { if (shouldStrip()) strip(r); } catch (e) { /* 무시 */ }
+    try {
+      const api = API_RE.exec(this.url || '');
+      foundKeys = [];
+      if (shouldStrip()) strip(r);
+      if (api) diag('응답', describe(r, 'fetch.json ' + api[1]));
+    } catch (e) { /* 무시 */ }
     return r;
   };
   const origText = Response.prototype.text;
   Response.prototype.text = async function (...args) {
     const t = await origText.apply(this, args);
-    try { if (shouldStrip() && API_RE.test(this.url || '')) return stripText(t); } catch (e) { /* 무시 */ }
+    try {
+      const api = API_RE.exec(this.url || '');
+      if (api) {
+        foundKeys = [];
+        const out = shouldStrip() ? stripText(t) : t;
+        diag('응답', 'fetch.text ' + api[1] + (foundKeys.length ? ' 광고데이터:' + [...new Set(foundKeys)].join('/') : '') + (t.includes('serverAbrStreamingUrl') ? ' SABR' : ''));
+        return out;
+      }
+    } catch (e) { /* 무시 */ }
     return t;
   };
 
@@ -114,7 +159,11 @@
       get() {
         const t = rtDesc.get.call(this);
         if (this.__ytabApi && this.readyState === 4 && shouldStrip()) {
-          if (this.__ytabCache === undefined) this.__ytabCache = stripText(t);
+          if (this.__ytabCache === undefined) {
+            foundKeys = [];
+            this.__ytabCache = stripText(t);
+            diag('응답', 'xhr' + (foundKeys.length ? ' 광고데이터:' + [...new Set(foundKeys)].join('/') : ''));
+          }
           return this.__ytabCache;
         }
         return t;
@@ -137,12 +186,19 @@
   // (4) 페이지에 처음부터 박혀 오는 데이터
   for (const name of ['ytInitialPlayerResponse', 'ytInitialData', 'ytInitialReelWatchSequenceResponse']) {
     let value = window[name];
-    try { if (value && shouldStrip()) strip(value); } catch (e) { /* 무시 */ }
+    try { if (value && shouldStrip()) { foundKeys = []; strip(value); diag('초기데이터', describe(value, name)); } } catch (e) { /* 무시 */ }
     try {
       Object.defineProperty(window, name, {
         configurable: true,
         get() { return value; },
-        set(v) { try { if (shouldStrip()) strip(v); } catch (e) { /* 무시 */ } value = v; }
+        set(v) {
+          try {
+            foundKeys = [];
+            if (shouldStrip()) strip(v);
+            if (name !== 'ytInitialData') diag('초기데이터', describe(v, name));
+          } catch (e) { /* 무시 */ }
+          value = v;
+        }
       });
     } catch (e) { /* 무시 */ }
   }
@@ -298,9 +354,29 @@
     if (v && !v.__ytabHooked) {
       v.__ytabHooked = true;
       VIDEO_EVENTS.forEach(ev => v.addEventListener(ev, () => { if (current || document.querySelector('.ad-showing')) tick(); }));
+      ['loadstart', 'loadedmetadata', 'canplay', 'waiting', 'stalled', 'playing', 'pause', 'emptied'].forEach(ev =>
+        v.addEventListener(ev, () => diag('영상:' + ev, 'rs' + v.readyState + ' t' + v.currentTime.toFixed(1) + (document.querySelector('.ad-showing') ? ' 광고표시중' : ''))));
     }
   }
   setInterval(hookPlayer, 500);
+
+  // ---------- 재생 밀어주기: 데이터는 도착했는데 영상이 멈춰 있으면 바로 재생 ----------
+  setInterval(() => {
+    if (nudged || !shouldStrip() || !/\/watch|\/shorts/.test(location.pathname)) return;
+    if (document.querySelector('.ad-showing')) return;
+    const p = document.getElementById('movie_player');
+    const v = (p || document).querySelector('video');
+    if (!v) return;
+    const since = performance.now() - navAt;
+    if (since < 700) return;
+    if (v.readyState >= 3 && v.currentTime < 0.2 && (v.paused || since > 1500)) {
+      nudged = true;
+      diag('밀어주기', 'rs' + v.readyState + ' paused=' + v.paused);
+      try { p && p.playVideo && p.playVideo(); } catch (e) { /* 무시 */ }
+      try { v.play(); } catch (e) { /* 무시 */ }
+      if (v.currentTime < 0.2) { try { v.currentTime = Math.max(v.currentTime, 0.01); } catch (e) { /* 무시 */ } }
+    }
+  }, 250);
   document.addEventListener('DOMContentLoaded', hookPlayer);
 
   // ---------- 3. 배너형/피드 광고 ----------

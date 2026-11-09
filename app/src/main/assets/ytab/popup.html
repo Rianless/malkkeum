@@ -39,6 +39,7 @@
     <button class="tab on" data-tab="cats">카테고리</button>
     <button class="tab" data-tab="log">광고 기록</button>
     <button class="tab" data-tab="adv">차단 광고주</button>
+    <button class="tab" data-tab="diag">진단</button>
   </nav>
 
   <section class="panel" id="cats"></section>
@@ -49,6 +50,12 @@
       <button>추가</button>
     </form>
     <ul id="adv-list"></ul>
+  </section>
+
+  <section class="panel hidden" id="diag">
+    <p class="hint">영상을 2~3개 열어본 뒤 <b>복사</b>를 눌러 대화창에 붙여넣어 주세요. 숫자는 영상을 누른 뒤 지난 시간(ms)이에요.</p>
+    <div class="diag-btns"><button id="diag-copy">복사</button><button id="diag-clear">지우기</button></div>
+    <pre id="diag-text"></pre>
   </section>
 
   <footer>

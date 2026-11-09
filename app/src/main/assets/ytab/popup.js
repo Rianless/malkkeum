@@ -3,7 +3,7 @@
   const C = window.YTAB_CLASSIFIER;
   const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', blockedCategories: [], blockedAdvertisers: [] };
   const $ = s => document.querySelector(s);
-  let state = { settings: DEFAULTS, log: [], stats: {} };
+  let state = { settings: DEFAULTS, log: [], stats: {}, diag: [] };
 
   const save = patch => {
     state.settings = Object.assign({}, state.settings, patch);
@@ -71,6 +71,10 @@
         </div>
       </div>`).join('') : '<p class="empty">아직 기록된 광고가 없어요.<br>유튜브에서 영상을 틀어보세요.</p>';
 
+    // 진단 탭
+    const dt = document.getElementById('diag-text');
+    if (dt) dt.textContent = diagText() || '아직 기록이 없어요.';
+
     // 광고주 탭
     $('#adv-list').innerHTML = s.blockedAdvertisers.length ? s.blockedAdvertisers.map((a, i) => `
       <li><span>${esc(a)}</span><button class="mini" data-del-adv="${i}">삭제</button></li>`).join('')
@@ -122,9 +126,29 @@
     chrome.storage.local.set({ log: [], stats: { blocked: 0, analyzed: 0, stripped: 0 } });
   });
 
+  function diagText() {
+    const s = state.settings;
+    const head = `[말끔 진단] 방식:${s.method === 'skip' ? '빨리 넘기기' : '미리 제거'} 모드:${s.mode}`;
+    const lines = (state.diag || []).map(i => (i.e === 'nav' ? '\n' : '') + `${String(i.t).padStart(6)}  ${i.e}  ${i.d}`);
+    return lines.length ? head + '\n' + lines.join('\n') : '';
+  }
+  const copyBtn = document.getElementById('diag-copy');
+  if (copyBtn) copyBtn.addEventListener('click', async () => {
+    const t = diagText();
+    try { await navigator.clipboard.writeText(t); copyBtn.textContent = '복사됨!'; }
+    catch (e) {
+      const r = document.createRange(); r.selectNodeContents(document.getElementById('diag-text'));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      try { document.execCommand('copy'); copyBtn.textContent = '복사됨!'; } catch (e2) { copyBtn.textContent = '길게 눌러 복사하세요'; }
+    }
+    setTimeout(() => { copyBtn.textContent = '복사'; }, 1500);
+  });
+  const clearDiag = document.getElementById('diag-clear');
+  if (clearDiag) clearDiag.addEventListener('click', () => chrome.storage.local.set({ diag: [] }));
+
   // 데이터 불러오기 + 실시간 반영
-  chrome.storage.local.get(['settings', 'log', 'stats'], d => {
-    state = { settings: Object.assign({}, DEFAULTS, d.settings), log: d.log || [], stats: d.stats || {} };
+  chrome.storage.local.get(['settings', 'log', 'stats', 'diag'], d => {
+    state = { settings: Object.assign({}, DEFAULTS, d.settings), log: d.log || [], stats: d.stats || {}, diag: d.diag || [] };
     render();
   });
   chrome.storage.onChanged.addListener((ch, area) => {
@@ -132,6 +156,7 @@
     if (ch.settings) state.settings = Object.assign({}, DEFAULTS, ch.settings.newValue);
     if (ch.log) state.log = ch.log.newValue || [];
     if (ch.stats) state.stats = ch.stats.newValue || {};
+    if (ch.diag) state.diag = ch.diag.newValue || [];
     render();
   });
 })();

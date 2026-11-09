@@ -3,18 +3,36 @@
   "name": "말끔 광고 분석·차단",
   "version": "1.0.0",
   "description": "말끔 앱에 내장된 유튜브 광고 분석·차단 기능",
-  "permissions": ["storage", "nativeMessaging", "nativeMessagingFromContent", "geckoViewAddons"],
-  "host_permissions": ["*://*.youtube.com/*"],
+  "permissions": [
+    "storage",
+    "nativeMessaging",
+    "nativeMessagingFromContent",
+    "geckoViewAddons",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*"
+  ],
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*"],
-      "js": ["content.js", "app-bridge.js"],
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "content.js",
+        "app-bridge.js"
+      ],
       "run_at": "document_start",
       "all_frames": false
     },
     {
-      "matches": ["*://*.youtube.com/*"],
-      "js": ["classifier.js", "inject.js"],
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "classifier.js",
+        "inject.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN",
       "all_frames": false

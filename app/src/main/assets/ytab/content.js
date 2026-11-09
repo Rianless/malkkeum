@@ -26,6 +26,14 @@
     const msg = ev.data;
 
     enqueue(() => new Promise(resolve => {
+      if (msg.type === 'diag') {
+        chrome.storage.local.get('diag', d => {
+          let list = (d.diag || []).concat((msg.items || []).map(i => ({ ...i, at: Date.now() })));
+          if (list.length > 400) list = list.slice(-400);
+          chrome.storage.local.set({ diag: list }, resolve);
+        });
+        return;
+      }
       chrome.storage.local.get(['log', 'stats'], data => {
         const stats = Object.assign({ blocked: 0, analyzed: 0, stripped: 0 }, data.stats);
         let log = data.log || [];

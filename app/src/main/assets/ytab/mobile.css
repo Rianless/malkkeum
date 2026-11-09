@@ -16,3 +16,8 @@ body { width: auto; max-width: 640px; margin: 0 auto; padding: 16px; font-size: 
 
 #method-box .label { display: block; margin-bottom: 6px; font-size: 13px; }
 #method-box.dim { opacity: .45; }
+
+#diag pre { white-space: pre-wrap; word-break: break-all; font: 11px/1.5 ui-monospace, monospace; background: rgba(127,127,127,.1); padding: 10px; border-radius: 8px; user-select: text; }
+.diag-btns { display: flex; gap: 6px; margin: 8px 0; }
+.diag-btns button { flex: 1; border: 0; border-radius: 8px; padding: 10px; font: inherit; background: #1d1d1f; color: #fff; }
+.diag-btns button + button { background: rgba(127,127,127,.2); color: inherit; }
