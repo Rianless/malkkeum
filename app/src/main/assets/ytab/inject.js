@@ -31,6 +31,11 @@
 
   function strip(obj, depth = 0) {
     if (!obj || typeof obj !== 'object' || depth > 3) return;
+    if (Array.isArray(obj)) { obj.forEach(o => strip(o, depth + 1)); return; }
+    // 영상 재생 데이터에서 광고를 지우면 유튜브가 눈치채고 광고 길이만큼 까만 화면으로 기다리게 함.
+    // 그래서 영상 광고는 지우지 않고, 재생되자마자 아래 2번에서 바로 건너뜀. (피드·검색 광고만 미리 지움)
+    const isPlayer = obj.videoDetails || obj.playabilityStatus || obj.streamingData;
+    if (isPlayer) return;
     for (const k of AD_KEYS) {
       if (k in obj) {
         if (Array.isArray(obj[k])) pendingStripped += obj[k].length;
@@ -164,6 +169,25 @@
   }
 
   setInterval(tick, 250);
+
+  // 0.25초를 기다리지 않고, 광고가 붙는 순간(플레이어 class 변경)과
+  // 광고 영상 길이가 정해지는 순간(durationchange 등)에 바로 건너뛰기 실행
+  const playerObserver = new MutationObserver(() => tick());
+  const VIDEO_EVENTS = ['loadedmetadata', 'durationchange', 'playing', 'timeupdate'];
+  function hookPlayer() {
+    const p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+    if (p && !p.__ytabHooked) {
+      p.__ytabHooked = true;
+      playerObserver.observe(p, { attributes: true, attributeFilter: ['class'] });
+    }
+    const v = (p || document).querySelector('video');
+    if (v && !v.__ytabHooked) {
+      v.__ytabHooked = true;
+      VIDEO_EVENTS.forEach(ev => v.addEventListener(ev, () => { if (current || document.querySelector('.ad-showing')) tick(); }));
+    }
+  }
+  setInterval(hookPlayer, 500);
+  document.addEventListener('DOMContentLoaded', hookPlayer);
 
   // ---------- 3. 배너형/피드 광고 ----------
   const BANNER_SEL = [
