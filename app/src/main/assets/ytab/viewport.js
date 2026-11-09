@@ -21,6 +21,14 @@
   const NAV_H = 52;
   const css = `
     html, body, ytd-app { min-width: 0 !important; }
+    /* PC용 스크롤바 자리(오른쪽 빈 띠) 없애기: 화면 폭에 딱 맞게 */
+    html, body { scrollbar-width: none !important; overflow-x: hidden !important; }
+    html::-webkit-scrollbar, body::-webkit-scrollbar { display: none !important; width: 0 !important; }
+    ytd-app, ytd-page-manager, ytd-browse, ytd-rich-grid-renderer, ytd-rich-grid-renderer > #contents,
+    ytd-two-column-browse-results-renderer, ytd-watch-flexy {
+      width: 100% !important; max-width: 100% !important; box-sizing: border-box !important;
+    }
+    ytd-app { --ytd-scrollbar-width: 0px !important; --ytd-persistent-guide-width: 0px !important; }
     body { padding-bottom: ${NAV_H}px !important; }
 
     /* 위쪽 막대: 얇게, 폰에서 안 쓰는 버튼 숨김 */
