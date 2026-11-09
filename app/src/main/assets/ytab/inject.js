@@ -59,35 +59,31 @@
     } catch (e) { return where; }
   }
 
-  // ---------- 0. 유튜브의 '5초 지연' 없애기 ----------
-  // 광고 차단을 눈치채면 유튜브가 영상 시작 전에 5초짜리 대기 타이머를 거는데,
-  // 그 타이머(5초 근처 + resolve 호출)를 찾아 바로 끝나게 바꿈.
-  const origSetTimeout = window.setTimeout;
-  const WRAPPED_RE = /^function\(\.\.\.\w\)\{try\{return \w\.apply\(this,\w\)/;
-  const GENERIC_RE = /var \w=\w\(\w\(\),\w,\w\);\w\[\w\]=\w/;
-  window.setTimeout = function (fn, delay, ...rest) {
-    try {
-      if (typeof fn === 'function' && delay >= 4000 && delay <= 6000 && shouldStrip()) {
-        const src = Function.prototype.toString.call(fn).replace(/\s+/g, ' ');
-        const sinceNav = typeof navAt === 'number' ? performance.now() - navAt : 99999;
-        const onWatch = /\/watch|\/shorts/.test(location.pathname);
-        const resolveLike = /resolve\(1\)|\.resolve\(|resolve\(\)/.test(src) && src.length < 400;
-        // 영상을 연 직후(3초 안)에 걸리는, 다른 함수로 감싼 4~6초 타이머 = 시작 지연으로 의심
-        // (실험 결과 효과 없어서 끔) 감싼 타이머는 건드리지 않음
-        const wrappedAtStart = false && onWatch && sinceNav < 3000 && WRAPPED_RE.test(src);
-        if (resolveLike || wrappedAtStart) {
-          diag('5초지연제거', delay + 'ms ' + (wrappedAtStart ? '감싼타이머' : 'resolve'));
-          return origSetTimeout.call(this, fn, 1, ...rest);
-        }
-        if (!GENERIC_RE.test(src)) {
-          let where = '';
-          try { where = (new Error().stack || '').split('\n').slice(1, 4).map(l => l.replace(/.*\//, '').slice(0, 40)).join(' < '); } catch (e) { /* 무시 */ }
-          diag('5초타이머(그대로)', delay + 'ms ' + src.slice(0, 60) + ' @' + where);
-        }
-      }
-    } catch (e) { /* 무시 */ }
-    return origSetTimeout.call(this, fn, delay, ...rest);
+  // ---------- 0. 흔적 숨기기 ----------
+  // 유튜브는 페이지 기본 기능(JSON.parse, fetch 응답 등)이 바꿔치기됐는지 검사해서
+  // 차단을 눈치채면 영상 시작을 약 5초 늦춤. 바꾼 기능도 검사하면 원래 기능처럼 보이게 함.
+  const nativeToString = Function.prototype.toString;
+  const cloaked = new WeakMap();
+  const fakeToString = function toString() {
+    const real = cloaked.get(this);
+    return nativeToString.call(real || this);
   };
+  cloaked.set(fakeToString, nativeToString);
+  try {
+    Object.defineProperty(Function.prototype, 'toString', { value: fakeToString, writable: true, configurable: true, enumerable: false });
+  } catch (e) { /* 무시 */ }
+  function cloak(fake, real) {
+    cloaked.set(fake, real);
+    try { Object.defineProperty(fake, 'name', { value: real.name, configurable: true }); } catch (e) { /* 무시 */ }
+    try { Object.defineProperty(fake, 'length', { value: real.length, configurable: true }); } catch (e) { /* 무시 */ }
+    return fake;
+  }
+  function patchMethod(obj, key, make) {
+    const real = obj[key];
+    const fake = cloak(make(real), real);
+    const d = Object.getOwnPropertyDescriptor(obj, key) || { writable: true, configurable: true, enumerable: false };
+    Object.defineProperty(obj, key, { value: fake, writable: d.writable !== false, configurable: true, enumerable: !!d.enumerable });
+  }
 
   // ---------- 1. 데이터 단계에서 광고 제거 (강화판) ----------
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
@@ -140,18 +136,23 @@
   }, 2000);
 
   // (1) 페이지가 JSON 글자를 객체로 바꿀 때
-  JSON.parse = function (...args) {
-    const r = origParse.apply(this, args);
+  patchMethod(JSON, 'parse', real => function parse(...args) {
+    const r = real.apply(this, args);
     try {
-      if (shouldStrip() && typeof args[0] === 'string' && AD_RE.test(args[0])) strip(r);
+      if (shouldStrip() && typeof args[0] === 'string' && AD_RE.test(args[0])) {
+        foundKeys = [];
+        strip(r);
+        if (foundKeys.length && (r && (r.playabilityStatus || r.playerResponse || r.videoDetails))) {
+          diag('광고데이터제거', 'JSON ' + [...new Set(foundKeys)].join('/'));
+        }
+      }
     } catch (e) { /* 무시 */ }
     return r;
-  };
+  });
 
   // (2) fetch 응답을 json()/text()로 읽을 때
-  const origJson = Response.prototype.json;
-  Response.prototype.json = async function (...args) {
-    const r = await origJson.apply(this, args);
+  patchMethod(Response.prototype, 'json', real => async function json(...args) {
+    const r = await real.apply(this, args);
     try {
       const api = API_RE.exec(this.url || '');
       foundKeys = [];
@@ -159,10 +160,9 @@
       if (api) diag('응답', describe(r, 'fetch.json ' + api[1]));
     } catch (e) { /* 무시 */ }
     return r;
-  };
-  const origText = Response.prototype.text;
-  Response.prototype.text = async function (...args) {
-    const t = await origText.apply(this, args);
+  });
+  patchMethod(Response.prototype, 'text', real => async function text(...args) {
+    const t = await real.apply(this, args);
     try {
       const api = API_RE.exec(this.url || '');
       if (api) {
@@ -173,62 +173,70 @@
       }
     } catch (e) { /* 무시 */ }
     return t;
-  };
+  });
 
   // (3) 옛날 방식 통신(XMLHttpRequest)으로 받을 때
-  const origOpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    try { this.__ytabApi = API_RE.test(String(url)); } catch (e) { /* 무시 */ }
-    return origOpen.call(this, method, url, ...rest);
-  };
+  const xhrApi = new WeakSet();
+  patchMethod(XMLHttpRequest.prototype, 'open', real => function open(method, url, ...rest) {
+    try { if (API_RE.test(String(url))) xhrApi.add(this); else xhrApi.delete(this); } catch (e) { /* 무시 */ }
+    return real.call(this, method, url, ...rest);
+  });
+  const xhrCache = new WeakMap();
   const rtDesc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'responseText');
   const rDesc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'response');
   if (rtDesc && rtDesc.get) {
     Object.defineProperty(XMLHttpRequest.prototype, 'responseText', {
       configurable: true,
-      get() {
+      enumerable: rtDesc.enumerable,
+      get: cloak(function () {
         const t = rtDesc.get.call(this);
-        if (this.__ytabApi && this.readyState === 4 && shouldStrip()) {
-          if (this.__ytabCache === undefined) {
+        if (xhrApi.has(this) && this.readyState === 4 && shouldStrip()) {
+          if (!xhrCache.has(this)) {
             foundKeys = [];
-            this.__ytabCache = stripText(t);
+            xhrCache.set(this, stripText(t));
             diag('응답', 'xhr' + (foundKeys.length ? ' 광고데이터:' + [...new Set(foundKeys)].join('/') : ''));
           }
-          return this.__ytabCache;
+          return xhrCache.get(this);
         }
         return t;
-      }
+      }, rtDesc.get)
     });
   }
   if (rDesc && rDesc.get) {
     Object.defineProperty(XMLHttpRequest.prototype, 'response', {
       configurable: true,
-      get() {
+      enumerable: rDesc.enumerable,
+      get: cloak(function () {
         const r = rDesc.get.call(this);
-        if (!this.__ytabApi || this.readyState !== 4 || !shouldStrip()) return r;
+        if (!xhrApi.has(this) || this.readyState !== 4 || !shouldStrip()) return r;
         if (typeof r === 'string') return this.responseText;
         if (r && typeof r === 'object' && !(r instanceof ArrayBuffer) && !(r instanceof Blob)) { try { strip(r); } catch (e) { /* 무시 */ } }
         return r;
-      }
+      }, rDesc.get)
     });
   }
 
   // (4) 페이지에 처음부터 박혀 오는 데이터
+  // 값이 들어오는 순간 한 번만 광고를 지우고, 곧바로 평범한 변수로 되돌려 흔적을 남기지 않음
   for (const name of ['ytInitialPlayerResponse', 'ytInitialData', 'ytInitialReelWatchSequenceResponse']) {
-    let value = window[name];
-    try { if (value && shouldStrip()) { foundKeys = []; strip(value); diag('초기데이터', describe(value, name)); } } catch (e) { /* 무시 */ }
+    const existing = window[name];
+    if (existing !== undefined) {
+      try { if (shouldStrip()) { foundKeys = []; strip(existing); diag('초기데이터', describe(existing, name)); } } catch (e) { /* 무시 */ }
+      continue;
+    }
     try {
       Object.defineProperty(window, name, {
         configurable: true,
-        get() { return value; },
-        set(v) {
+        enumerable: true,
+        get: cloak(function () { return undefined; }, function get() {}),
+        set: cloak(function (v) {
           try {
             foundKeys = [];
             if (shouldStrip()) strip(v);
             if (name !== 'ytInitialData') diag('초기데이터', describe(v, name));
           } catch (e) { /* 무시 */ }
-          value = v;
-        }
+          Object.defineProperty(window, name, { value: v, writable: true, configurable: true, enumerable: true });
+        }, function set() {})
       });
     } catch (e) { /* 무시 */ }
   }
