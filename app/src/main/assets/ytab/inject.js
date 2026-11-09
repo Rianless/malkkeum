@@ -90,7 +90,17 @@
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
   // enforcementMessageViewModel = "광고 차단기 사용 중" 경고창
   const AD_KEYS = ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams', 'adBreakParams', 'enforcementMessageViewModel'];
-  const AD_RE = /"(adPlacements|playerAds|adSlots|adBreakHeartbeatParams|adBreakParams|enforcementMessageViewModel)"/;
+  const AD_RE = /"(adPlacements|playerAds|adSlots|adBreakHeartbeatParams|adBreakParams|enforcementMessageViewModel|adSlotRenderer|promotedSparklesWebRenderer|searchPyvRenderer|statementBannerRenderer|promotedVideoRenderer|compactPromotedVideoRenderer|inFeedAdLayoutRenderer)"/;
+
+  // 홈·검색·추천 목록에 끼어 있는 광고 칸 (목록에서 통째로 빼버림)
+  function isFeedAd(o) {
+    if (!o || typeof o !== 'object') return false;
+    const c = o.richItemRenderer && o.richItemRenderer.content;
+    return !!(o.adSlotRenderer || o.promotedSparklesWebRenderer || o.searchPyvRenderer || o.promotedVideoRenderer ||
+      o.compactPromotedVideoRenderer || o.inFeedAdLayoutRenderer ||
+      (c && (c.adSlotRenderer || c.inFeedAdLayoutRenderer || c.promotedSparklesWebRenderer)) ||
+      (o.richSectionRenderer && o.richSectionRenderer.content && o.richSectionRenderer.content.statementBannerRenderer));
+  }
   let pendingStripped = 0;
 
   const isPlayerObj = o => !!(o.videoDetails || o.playabilityStatus || o.streamingData);
@@ -98,6 +108,9 @@
   function strip(obj, depth = 0, inPlayer = false) {
     if (!obj || typeof obj !== 'object' || depth > 24) return;
     if (Array.isArray(obj)) {
+      for (let i = obj.length - 1; i >= 0; i--) {
+        if (isFeedAd(obj[i])) { obj.splice(i, 1); pendingStripped += 1; foundKeys.push('피드광고'); }
+      }
       for (const o of obj) if (o && typeof o === 'object') strip(o, depth + 1, inPlayer);
       return;
     }
@@ -346,6 +359,20 @@
   // 전체 차단 모드: 플레이어에 광고 표시(class)가 붙는 순간 CSS가 즉시 덮음 (자바스크립트 대기 없음)
   // 선택 차단 모드: 차단하기로 결정된 광고만 덮음 (허용한 광고는 그대로 보임)
   const COVER_CSS = `
+    html[data-ytab-hide="1"] ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+    html[data-ytab-hide="1"] ytd-rich-item-renderer:has(ytd-in-feed-ad-layout-renderer),
+    html[data-ytab-hide="1"] ytd-rich-section-renderer:has(ytd-statement-banner-renderer),
+    html[data-ytab-hide="1"] ytd-ad-slot-renderer, html[data-ytab-hide="1"] ytd-in-feed-ad-layout-renderer,
+    html[data-ytab-hide="1"] ytd-promoted-sparkles-web-renderer, html[data-ytab-hide="1"] ytd-promoted-video-renderer,
+    html[data-ytab-hide="1"] ytd-compact-promoted-video-renderer, html[data-ytab-hide="1"] ytd-search-pyv-renderer,
+    html[data-ytab-hide="1"] ytd-display-ad-renderer, html[data-ytab-hide="1"] ytd-banner-promo-renderer,
+    html[data-ytab-hide="1"] ytd-statement-banner-renderer, html[data-ytab-hide="1"] #masthead-ad,
+    html[data-ytab-hide="1"] #player-ads, html[data-ytab-hide="1"] ytd-action-companion-ad-renderer,
+    html[data-ytab-hide="1"] ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"],
+    html[data-ytab-hide="1"] ytm-promoted-sparkles-web-renderer, html[data-ytab-hide="1"] ytm-companion-ad-renderer,
+    html[data-ytab-hide="1"] ad-slot-renderer, html[data-ytab-hide="1"] ytm-rich-item-renderer:has(ad-slot-renderer) {
+      display: none !important;
+    }
     html[data-ytab-hide="1"] .ad-showing video,
     .html5-video-player[data-ytab-cover] video { opacity: 0 !important; }
     html[data-ytab-hide="1"] #movie_player.ad-showing::after,
