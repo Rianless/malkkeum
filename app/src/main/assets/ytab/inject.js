@@ -73,7 +73,8 @@
         const onWatch = /\/watch|\/shorts/.test(location.pathname);
         const resolveLike = /resolve\(1\)|\.resolve\(|resolve\(\)/.test(src) && src.length < 400;
         // 영상을 연 직후(3초 안)에 걸리는, 다른 함수로 감싼 4~6초 타이머 = 시작 지연으로 의심
-        const wrappedAtStart = onWatch && sinceNav < 3000 && WRAPPED_RE.test(src);
+        // (실험 결과 효과 없어서 끔) 감싼 타이머는 건드리지 않음
+        const wrappedAtStart = false && onWatch && sinceNav < 3000 && WRAPPED_RE.test(src);
         if (resolveLike || wrappedAtStart) {
           diag('5초지연제거', delay + 'ms ' + (wrappedAtStart ? '감싼타이머' : 'resolve'));
           return origSetTimeout.call(this, fn, 1, ...rest);
