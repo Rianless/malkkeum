@@ -63,16 +63,26 @@
   // 광고 차단을 눈치채면 유튜브가 영상 시작 전에 5초짜리 대기 타이머를 거는데,
   // 그 타이머(5초 근처 + resolve 호출)를 찾아 바로 끝나게 바꿈.
   const origSetTimeout = window.setTimeout;
+  const WRAPPED_RE = /^function\(\.\.\.\w\)\{try\{return \w\.apply\(this,\w\)/;
+  const GENERIC_RE = /var \w=\w\(\w\(\),\w,\w\);\w\[\w\]=\w/;
   window.setTimeout = function (fn, delay, ...rest) {
     try {
       if (typeof fn === 'function' && delay >= 4000 && delay <= 6000 && shouldStrip()) {
-        const src = Function.prototype.toString.call(fn);
-        if (/resolve\(1\)|\.resolve\(|resolve\(\)/.test(src) && src.length < 400) {
-          if (typeof diag === 'function') diag('5초지연제거', String(delay));
+        const src = Function.prototype.toString.call(fn).replace(/\s+/g, ' ');
+        const sinceNav = typeof navAt === 'number' ? performance.now() - navAt : 99999;
+        const onWatch = /\/watch|\/shorts/.test(location.pathname);
+        const resolveLike = /resolve\(1\)|\.resolve\(|resolve\(\)/.test(src) && src.length < 400;
+        // 영상을 연 직후(3초 안)에 걸리는, 다른 함수로 감싼 4~6초 타이머 = 시작 지연으로 의심
+        const wrappedAtStart = onWatch && sinceNav < 3000 && WRAPPED_RE.test(src);
+        if (resolveLike || wrappedAtStart) {
+          diag('5초지연제거', delay + 'ms ' + (wrappedAtStart ? '감싼타이머' : 'resolve'));
           return origSetTimeout.call(this, fn, 1, ...rest);
         }
-        // 못 잡은 5초 타이머도 진단에 남겨서 다음에 패턴을 고칠 수 있게
-        if (typeof diag === 'function') diag('5초타이머(그대로)', src.replace(/\s+/g, ' ').slice(0, 90));
+        if (!GENERIC_RE.test(src)) {
+          let where = '';
+          try { where = (new Error().stack || '').split('\n').slice(1, 4).map(l => l.replace(/.*\//, '').slice(0, 40)).join(' < '); } catch (e) { /* 무시 */ }
+          diag('5초타이머(그대로)', delay + 'ms ' + src.slice(0, 60) + ' @' + where);
+        }
       }
     } catch (e) { /* 무시 */ }
     return origSetTimeout.call(this, fn, delay, ...rest);
