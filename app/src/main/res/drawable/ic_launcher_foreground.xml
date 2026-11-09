@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 둥근 화면 안의 재생 버튼 + 오른쪽 위 반짝임(말끔) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/launcher_fg"
+        android:pathData="M34,38h40a8,8 0,0 1,8 8v22a8,8 0,0 1,-8 8h-40a8,8 0,0 1,-8 -8v-22a8,8 0,0 1,8 -8z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M49,48 L63,57 L49,66 Z" />
+    <path
+        android:fillColor="@color/launcher_fg"
+        android:pathData="M80,24 L82,30 L88,32 L82,34 L80,40 L78,34 L72,32 L78,30 Z" />
+</vector>

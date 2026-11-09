@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">말끔</string>
+    <string name="block">차단</string>
+    <string name="log">기록</string>
+    <string name="back_to_youtube">유튜브로</string>
+    <string name="blocked_count">광고 %1$d개 차단</string>
+    <string name="block_off">차단 꺼짐</string>
+    <string name="ext_failed">광고 차단 기능을 불러오지 못했어요</string>
+</resources>

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "유튜브 광고 분석·차단기",
+  "version": "1.0.0",
+  "description": "유튜브 광고를 감지해 광고주·카테고리를 분석하고, 전체 또는 선택한 종류의 광고만 차단합니다.",
+  "permissions": ["storage"],
+  "host_permissions": ["*://*.youtube.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "유튜브 광고 분석·차단기"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["classifier.js", "inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "yt-ad-analyzer@local",
+      "strict_min_version": "128.0"
+    }
+  }
+}

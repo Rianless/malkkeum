@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>유튜브 광고 분석·차단기</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>광고 분석·차단기</h1>
+    <label class="switch" title="켜기/끄기">
+      <input type="checkbox" id="enabled">
+      <span></span>
+    </label>
+  </header>
+
+  <section class="stats">
+    <div><b id="s-blocked">0</b><small>차단한 광고</small></div>
+    <div><b id="s-analyzed">0</b><small>분석한 광고</small></div>
+    <div><b id="s-stripped">0</b><small>사전 제거</small></div>
+  </section>
+
+  <section class="mode">
+    <label><input type="radio" name="mode" value="all"> 전체 차단</label>
+    <label><input type="radio" name="mode" value="select"> 고른 종류만 차단</label>
+    <p class="hint" id="mode-hint"></p>
+  </section>
+
+  <nav>
+    <button class="tab on" data-tab="cats">카테고리</button>
+    <button class="tab" data-tab="log">광고 기록</button>
+    <button class="tab" data-tab="adv">차단 광고주</button>
+  </nav>
+
+  <section class="panel" id="cats"></section>
+  <section class="panel hidden" id="log"></section>
+  <section class="panel hidden" id="adv">
+    <form id="adv-form">
+      <input id="adv-input" placeholder="광고주 이름 직접 추가 (예: 쿠팡)">
+      <button>추가</button>
+    </form>
+    <ul id="adv-list"></ul>
+  </section>
+
+  <footer>
+    <button id="clear">기록 지우기</button>
+  </footer>
+
+  <script src="classifier.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

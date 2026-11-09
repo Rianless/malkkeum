@@ -1,0 +1,15 @@
+/* 앱 안에서 전체 화면으로 볼 때 */
+body { width: auto; max-width: 640px; margin: 0 auto; padding: 16px; font-size: 15px; }
+.panel { max-height: none; }
+.tab { padding: 10px; }
+.cat input { width: 22px; height: 22px; }
+.mini { padding: 5px 10px; font-size: 12px; }
+@media (prefers-color-scheme: dark) {
+  body { background: #121212; color: #eee; }
+  .stats div, .mode, .cat, .item, #adv-list li { background: #1e1e1e; border-color: #2c2c2c; }
+  .tab { background: #2a2a2a; color: #ddd; }
+  .tab.on { background: #eee; color: #111; }
+  .item .title { color: #bbb; }
+  .tag, .mini { background: #2a2a2a; color: #ccc; }
+  #adv-input { background: #1e1e1e; color: #eee; border-color: #333; }
+}
