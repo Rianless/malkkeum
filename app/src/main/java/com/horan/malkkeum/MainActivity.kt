@@ -15,6 +15,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import org.json.JSONObject
+import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
@@ -25,8 +26,9 @@ import org.mozilla.geckoview.WebExtension
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        private const val HOME_MOBILE = "https://m.youtube.com/"
-        private const val HOME_PC = "https://www.youtube.com/"
+        // app=m / app=desktop + persist_app=1 : 유튜브가 쿠키에 기억한 PC/모바일 선택을 덮어씀
+        private const val HOME_MOBILE = "https://m.youtube.com/?app=m&persist_app=1"
+        private const val HOME_PC = "https://www.youtube.com/?app=desktop&persist_app=1"
         private const val NATIVE_APP = "malkkeum"
     }
 
@@ -157,12 +159,24 @@ class MainActivity : AppCompatActivity() {
         if (host == "youtu.be") {
             val id = uri.pathSegments.firstOrNull() ?: return home
             val t = uri.getQueryParameter("t")
-            return "https://$target/watch?v=$id" + (if (t != null) "&t=$t" else "")
+            return withAppParam(Uri.parse("https://$target/watch?v=$id" + (if (t != null) "&t=$t" else "")))
         }
         if (host.endsWith("youtube.com")) {
-            return uri.buildUpon().scheme("https").authority(target).build().toString()
+            return withAppParam(uri.buildUpon().scheme("https").authority(target).build())
         }
         return raw
+    }
+
+    // 버전 선택 신호를 주소에 붙임 (이미 있으면 바꿔 씀)
+    private fun withAppParam(uri: Uri): String {
+        val b = uri.buildUpon().clearQuery()
+        for (name in uri.queryParameterNames) {
+            if (name == "app" || name == "persist_app") continue
+            for (v in uri.getQueryParameters(name)) b.appendQueryParameter(name, v)
+        }
+        b.appendQueryParameter("app", if (pcMode) "desktop" else "m")
+        b.appendQueryParameter("persist_app", "1")
+        return b.build().toString()
     }
 
     // PC 버전: PC 브라우저로 소개하고 PC 화면 폭으로 그림
@@ -252,6 +266,20 @@ class MainActivity : AppCompatActivity() {
 
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
             if (session === mainSession) this@MainActivity.canGoBack = canGoBack
+        }
+
+        // 고른 버전과 다른 쪽(PC↔모바일)으로 가려 하면 고른 버전으로 바꿔서 열어요.
+        override fun onLoadRequest(
+            session: GeckoSession,
+            request: GeckoSession.NavigationDelegate.LoadRequest
+        ): GeckoResult<AllowOrDeny>? {
+            if (session !== mainSession) return null
+            val host = Uri.parse(request.uri).host?.lowercase() ?: return null
+            val wrong = (pcMode && host == "m.youtube.com") || (!pcMode && host == "www.youtube.com")
+            if (!wrong) return null
+            val fixed = toSiteUrl(request.uri)
+            geckoView.post { mainSession.loadUri(fixed) }
+            return GeckoResult.fromValue(AllowOrDeny.DENY)
         }
 
         // 새 창으로 열려는 링크는 지금 화면에서 열어요.
