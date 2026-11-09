@@ -49,15 +49,61 @@
       --ytd-rich-grid-gutter-margin: 0px !important;
     }
     ytd-rich-grid-renderer #contents.ytd-rich-grid-renderer { padding: 0 !important; margin: 0 !important; }
-    ytd-rich-item-renderer { width: 100% !important; margin: 0 0 20px !important; }
-    ytd-rich-item-renderer ytd-thumbnail, ytd-rich-item-renderer yt-thumbnail-view-model,
-    ytd-rich-item-renderer #thumbnail, ytd-rich-item-renderer .yt-thumbnail-view-model { border-radius: 0 !important; }
-    ytd-rich-item-renderer #details, ytd-rich-item-renderer .yt-lockup-view-model__metadata,
-    ytd-rich-item-renderer yt-lockup-metadata-view-model { padding: 0 12px !important; }
+    ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer:not([is-slim-media]) { width: 100% !important; margin: 0 0 20px !important; }
+
+    /* 묶음 밖에 따로 나온 Shorts 칸도 반 폭 세로 카드로 */
+    ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer[is-slim-media] {
+      width: calc(50% - 17px) !important; margin: 0 0 16px 12px !important;
+    }
+
+    /* Shorts 묶음: 모바일처럼 2열 세로 카드 */
+    ytd-rich-section-renderer, ytd-rich-shelf-renderer {
+      margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+    }
+    ytd-rich-shelf-renderer #rich-shelf-header-container, ytd-rich-shelf-renderer #rich-shelf-header {
+      margin: 8px 0 12px !important; padding: 0 12px !important;
+    }
+    ytd-rich-shelf-renderer #contents.ytd-rich-shelf-renderer {
+      display: grid !important; grid-template-columns: 1fr 1fr; gap: 10px;
+      padding: 0 12px !important; margin: 0 0 20px !important; width: auto !important;
+    }
+    ytd-rich-shelf-renderer ytd-rich-item-renderer, ytd-rich-item-renderer[is-slim-media] {
+      width: auto !important; max-width: none !important; min-width: 0 !important; margin: 0 !important;
+    }
+    ytd-rich-item-renderer[is-slim-media] ytm-shorts-lockup-view-model,
+    ytd-rich-item-renderer[is-slim-media] ytm-shorts-lockup-view-model-v2 { width: 100% !important; margin: 0 !important; }
+    ytd-rich-item-renderer[is-slim-media] [class*="shortsLockupViewModelHostThumbnailContainer"],
+    ytd-rich-item-renderer[is-slim-media] [class*="ShortsLockupViewModelHostThumbnailContainer"] {
+      width: 100% !important; height: auto !important; aspect-ratio: 9 / 16; border-radius: 12px !important; overflow: hidden;
+    }
+    ytd-rich-item-renderer[is-slim-media] img { object-fit: cover !important; width: 100% !important; height: 100% !important; }
+    ytd-rich-item-renderer[is-slim-media] [class*="shortsLockupViewModelHostOutsideMetadata"],
+    ytd-rich-item-renderer[is-slim-media] [class*="shortsLockupViewModelHostMetadata"] {
+      margin: 0 !important; padding: 6px 2px 0 !important; width: auto !important; min-width: 0 !important;
+    }
+    ytd-rich-item-renderer[is-slim-media] h3, ytd-rich-item-renderer[is-slim-media] h3 * {
+      font-size: 14px !important; line-height: 19px !important; white-space: normal !important;
+    }
+    ytd-rich-item-renderer[is-slim-media] ytd-thumbnail, ytd-rich-item-renderer[is-slim-media] #thumbnail { border-radius: 12px !important; }
+    ytd-rich-item-renderer:not([is-slim-media]) ytd-thumbnail, ytd-rich-item-renderer:not([is-slim-media]) yt-thumbnail-view-model,
+    ytd-rich-item-renderer:not([is-slim-media]) #thumbnail, ytd-rich-item-renderer:not([is-slim-media]) .yt-thumbnail-view-model { border-radius: 0 !important; }
+    ytd-rich-item-renderer:not([is-slim-media]) #details, ytd-rich-item-renderer:not([is-slim-media]) .yt-lockup-view-model__metadata,
+    ytd-rich-item-renderer:not([is-slim-media]) yt-lockup-metadata-view-model { padding: 0 12px !important; }
     ytd-browse #primary, ytd-two-column-browse-results-renderer {
       padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: 100% !important;
     }
-    ytd-feed-filter-chip-bar-renderer, #chips-wrapper { padding: 0 8px !important; }
+
+    /* 카테고리 칩: 왼쪽부터 시작, PC용 화살표 숨기고 손가락으로 밀어서 넘기기 */
+    #header.ytd-rich-grid-renderer, ytd-rich-grid-renderer > #header { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    ytd-feed-filter-chip-bar-renderer { margin: 0 !important; width: 100% !important; }
+    ytd-feed-filter-chip-bar-renderer #chips-wrapper { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
+    ytd-feed-filter-chip-bar-renderer #left-arrow, ytd-feed-filter-chip-bar-renderer #right-arrow,
+    ytd-feed-filter-chip-bar-renderer #left-arrow-button, ytd-feed-filter-chip-bar-renderer #right-arrow-button { display: none !important; }
+    ytd-feed-filter-chip-bar-renderer #scroll-container {
+      overflow-x: auto !important; scrollbar-width: none; padding: 0 12px !important; margin: 0 !important;
+      -webkit-overflow-scrolling: touch;
+    }
+    ytd-feed-filter-chip-bar-renderer #chips { transform: none !important; margin: 0 !important; }
 
     /* 제목·정보 글씨 키우기 */
     #video-title, .yt-lockup-metadata-view-model__title, h3.yt-lockup-metadata-view-model-wiz__heading-reset {
