@@ -9,7 +9,12 @@ val geckoVersion = (findProperty("geckoVersion") as String?)?.takeIf { it.isNotB
 
 android {
     namespace = "com.horan.malkkeum"
-    compileSdk = 37
+    // GeckoView 159는 안드로이드 API 37.2 이상으로 컴파일해야 해요.
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "com.horan.malkkeum"
