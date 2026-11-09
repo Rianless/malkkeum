@@ -18,13 +18,15 @@ import org.json.JSONObject
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
+import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.WebExtension
 
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        private const val HOME = "https://m.youtube.com/"
+        private const val HOME_MOBILE = "https://m.youtube.com/"
+        private const val HOME_PC = "https://www.youtube.com/"
         private const val NATIVE_APP = "malkkeum"
     }
 
@@ -34,6 +36,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var counter: TextView
     private lateinit var toggle: MaterialSwitch
     private lateinit var logButton: MaterialButton
+    private lateinit var pcButton: MaterialButton
+    private val prefs by lazy { getSharedPreferences("malkkeum", MODE_PRIVATE) }
+    private var pcMode: Boolean
+        get() = prefs.getBoolean("pcMode", false)
+        set(v) { prefs.edit().putBoolean("pcMode", v).apply() }
+    private val home get() = if (pcMode) HOME_PC else HOME_MOBILE
 
     private lateinit var mainSession: GeckoSession
     private var logSession: GeckoSession? = null
@@ -59,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         counter = findViewById(R.id.counter)
         toggle = findViewById(R.id.toggle)
         logButton = findViewById(R.id.logButton)
+        pcButton = findViewById(R.id.pcButton)
 
         runtime = Gecko.runtime(this)
         mainSession = GeckoSession().apply {
@@ -66,6 +75,7 @@ class MainActivity : AppCompatActivity() {
             contentDelegate = makeContentDelegate()
             open(runtime)
         }
+        applyPcMode()
         geckoView.setSession(mainSession)
 
         pendingUrl = urlFromIntent(intent)
@@ -76,6 +86,14 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, if (checked) "광고 차단 켜짐" else "광고 차단 꺼짐", Toast.LENGTH_SHORT).show()
         }
         logButton.setOnClickListener { if (showingLog) showMain() else showLog() }
+        pcButton.setOnClickListener {
+            pcMode = !pcMode
+            applyPcMode()
+            if (showingLog) showMain()
+            Toast.makeText(this, if (pcMode) "PC 버전으로 열어요" else "모바일 버전으로 열어요", Toast.LENGTH_SHORT).show()
+            val cur = currentUrl
+            mainSession.loadUri(if (cur != null) toSiteUrl(cur) else home)
+        }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -108,7 +126,7 @@ class MainActivity : AppCompatActivity() {
     private fun start() {
         if (started) return
         started = true
-        mainSession.loadUri(pendingUrl ?: HOME)
+        mainSession.loadUri(pendingUrl ?: home)
         pendingUrl = null
     }
 
@@ -128,22 +146,35 @@ class MainActivity : AppCompatActivity() {
                 ?.let { Regex("https?://\\S+").find(it)?.value }
             else -> null
         } ?: return null
-        return toMobileUrl(raw)
+        return toSiteUrl(raw)
     }
 
-    private fun toMobileUrl(raw: String): String {
+    // PC/모바일 설정에 맞는 유튜브 주소로 바꾸기
+    private fun toSiteUrl(raw: String): String {
         val uri = Uri.parse(raw)
         val host = uri.host?.lowercase() ?: return raw
+        val target = if (pcMode) "www.youtube.com" else "m.youtube.com"
         if (host == "youtu.be") {
-            val id = uri.pathSegments.firstOrNull() ?: return HOME
+            val id = uri.pathSegments.firstOrNull() ?: return home
             val t = uri.getQueryParameter("t")
-            return "https://m.youtube.com/watch?v=$id" + (if (t != null) "&t=$t" else "")
+            return "https://$target/watch?v=$id" + (if (t != null) "&t=$t" else "")
         }
         if (host.endsWith("youtube.com")) {
-            return uri.buildUpon().scheme("https").authority("m.youtube.com").build().toString()
+            return uri.buildUpon().scheme("https").authority(target).build().toString()
         }
         return raw
     }
+
+    // PC 버전: PC 브라우저로 소개하고 PC 화면 폭으로 그림
+    private fun applyPcMode() {
+        mainSession.settings.userAgentMode =
+            if (pcMode) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
+        mainSession.settings.viewportMode =
+            if (pcMode) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP else GeckoSessionSettings.VIEWPORT_MODE_MOBILE
+        pcButton.setText(if (pcMode) R.string.pc_on else R.string.pc_off)
+    }
+
+    private var currentUrl: String? = null
 
     // ---------- 기록·설정 화면 (확장 프로그램 페이지) ----------
     private fun showLog() {
@@ -210,6 +241,15 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- 화면 이동 / 전체 화면 ----------
     private val navDelegate = object : GeckoSession.NavigationDelegate {
+        override fun onLocationChange(
+            session: GeckoSession,
+            url: String?,
+            perms: MutableList<GeckoSession.PermissionDelegate.ContentPermission>,
+            hasUserGesture: Boolean
+        ) {
+            if (session === mainSession) currentUrl = url
+        }
+
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
             if (session === mainSession) this@MainActivity.canGoBack = canGoBack
         }
