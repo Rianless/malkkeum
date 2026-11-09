@@ -21,7 +21,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.11.1"
+          gradle-version: "9.4.1"
 
       - name: 최신 파이어폭스 엔진(GeckoView) 버전 찾기
         id: gecko

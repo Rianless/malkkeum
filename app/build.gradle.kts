@@ -1,8 +1,5 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 // GitHub Actions가 빌드할 때마다 번호가 올라가서, 새 APK를 기존 앱 위에 덮어 설치할 수 있어요.
@@ -12,7 +9,7 @@ val geckoVersion = (findProperty("geckoVersion") as String?)?.takeIf { it.isNotB
 
 android {
     namespace = "com.horan.malkkeum"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.horan.malkkeum"
@@ -53,10 +50,6 @@ android {
         checkReleaseBuilds = false
         abortOnError = false
     }
-}
-
-kotlin {
-    compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
 }
 
 dependencies {
