@@ -9,7 +9,8 @@
 
   const C = window.YTAB_CLASSIFIER;
   const origParse = JSON.parse;
-  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', blockedCategories: [], blockedAdvertisers: [] };
+  const PLAYER_KEYS_ALL = ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams'];
+  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', stripKeys: PLAYER_KEYS_ALL, blockedCategories: [], blockedAdvertisers: [] };
 
   // ---------- 설정 읽기 (content.js가 html 태그 속성/로컬스토리지에 넣어줌) ----------
   function settings() {
@@ -103,7 +104,11 @@
     const player = inPlayer || isPlayerObj(obj);
     const allowed = player ? shouldStripPlayer() : true;
     if (allowed) {
-      for (const k of AD_KEYS) {
+      // 영상 재생 데이터에서는 '실험: 지울 항목'에서 고른 것만 지움 (경고창 데이터는 항상 지움)
+      const keys = player
+        ? AD_KEYS.filter(k => !PLAYER_KEYS_ALL.includes(k) || (settings().stripKeys || PLAYER_KEYS_ALL).includes(k))
+        : AD_KEYS;
+      for (const k of keys) {
         if (k in obj) {
           pendingStripped += Array.isArray(obj[k]) ? obj[k].length : 1;
           foundKeys.push(k);

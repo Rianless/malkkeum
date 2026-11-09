@@ -3,7 +3,7 @@
 // - 설정이나 차단 개수가 바뀌면 앱에 알려서 화면 위 숫자를 갱신함
 (() => {
   'use strict';
-  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', blockedCategories: [], blockedAdvertisers: [] };
+  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', stripKeys: ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams'], blockedCategories: [], blockedAdvertisers: [] };
   let port;
   try {
     port = browser.runtime.connectNative('malkkeum');

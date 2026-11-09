@@ -3,7 +3,7 @@
 // - 페이지에서 보낸 광고 분석 기록을 저장소에 쌓음
 (() => {
   'use strict';
-  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', blockedCategories: [], blockedAdvertisers: [] };
+  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', stripKeys: ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams'], blockedCategories: [], blockedAdvertisers: [] };
   const MAX_LOG = 300;
 
   function pushSettings(s) {

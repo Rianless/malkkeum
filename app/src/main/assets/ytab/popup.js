@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const C = window.YTAB_CLASSIFIER;
-  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', blockedCategories: [], blockedAdvertisers: [] };
+  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', stripKeys: ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams'], blockedCategories: [], blockedAdvertisers: [] };
   const $ = s => document.querySelector(s);
   let state = { settings: DEFAULTS, log: [], stats: {}, diag: [] };
 
@@ -72,6 +72,7 @@
       </div>`).join('') : '<p class="empty">아직 기록된 광고가 없어요.<br>유튜브에서 영상을 틀어보세요.</p>';
 
     // 진단 탭
+    document.querySelectorAll('#keys-box input[data-key]').forEach(c => { c.checked = (s.stripKeys || []).includes(c.dataset.key); });
     const dt = document.getElementById('diag-text');
     if (dt) dt.textContent = diagText() || '아직 기록이 없어요.';
 
@@ -128,7 +129,7 @@
 
   function diagText() {
     const s = state.settings;
-    const head = `[말끔 진단] 방식:${s.method === 'skip' ? '빨리 넘기기' : '미리 제거'} 모드:${s.mode}`;
+    const head = `[말끔 진단] 방식:${s.method === 'skip' ? '빨리 넘기기' : '미리 제거'} 모드:${s.mode} 지울항목:${(s.stripKeys || []).join(',') || '없음'}`;
     const lines = (state.diag || []).map(i => (i.e === 'nav' ? '\n' : '') + `${String(i.t).padStart(6)}  ${i.e}  ${i.d}`);
     return lines.length ? head + '\n' + lines.join('\n') : '';
   }
@@ -142,6 +143,11 @@
       try { document.execCommand('copy'); copyBtn.textContent = '복사됨!'; } catch (e2) { copyBtn.textContent = '길게 눌러 복사하세요'; }
     }
     setTimeout(() => { copyBtn.textContent = '복사'; }, 1500);
+  });
+  const keysBox = document.getElementById('keys-box');
+  if (keysBox) keysBox.addEventListener('change', () => {
+    const keys = [...keysBox.querySelectorAll('input[data-key]')].filter(c => c.checked).map(c => c.dataset.key);
+    save({ stripKeys: keys });
   });
   const clearDiag = document.getElementById('diag-clear');
   if (clearDiag) clearDiag.addEventListener('click', () => chrome.storage.local.set({ diag: [] }));
