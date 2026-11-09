@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const C = window.YTAB_CLASSIFIER;
-  const DEFAULTS = { enabled: true, mode: 'all', blockedCategories: [], blockedAdvertisers: [] };
+  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', blockedCategories: [], blockedAdvertisers: [] };
   const $ = s => document.querySelector(s);
   let state = { settings: DEFAULTS, log: [], stats: {} };
 
@@ -26,6 +26,16 @@
     const s = state.settings;
     $('#enabled').checked = s.enabled;
     document.querySelectorAll('input[name=mode]').forEach(r => { r.checked = r.value === s.mode; });
+    document.querySelectorAll('input[name=method]').forEach(r => { r.checked = r.value === s.method; });
+    const mb = document.getElementById('method-box');
+    if (mb) {
+      mb.classList.toggle('dim', s.mode !== 'all');
+      document.getElementById('method-hint').textContent = s.mode !== 'all'
+        ? '고른 종류만 차단할 때는 광고를 보고 판단해야 해서 항상 빨리 넘기기로 처리해요.'
+        : s.method === 'skip'
+          ? '광고를 불러온 뒤 가림막을 씌우고 16배속으로 넘겨요. 바꾼 뒤 영상을 새로 열어야 적용돼요.'
+          : '광고 정보를 미리 지워 광고가 아예 안 붙게 해요. 바꾼 뒤 영상을 새로 열어야 적용돼요.';
+    }
     $('#mode-hint').textContent = s.mode === 'all'
       ? '모든 광고를 차단하고, 걸러낸 광고는 분석해서 기록만 남겨요.'
       : '체크한 카테고리와 차단 광고주의 광고만 건너뛰고, 나머지는 그대로 보여줘요.';
@@ -71,6 +81,8 @@
   $('#enabled').addEventListener('change', e => save({ enabled: e.target.checked }));
   document.querySelectorAll('input[name=mode]').forEach(r =>
     r.addEventListener('change', e => save({ mode: e.target.value })));
+  document.querySelectorAll('input[name=method]').forEach(r =>
+    r.addEventListener('change', e => save({ method: e.target.value })));
 
   $('#cats').addEventListener('change', e => {
     const id = e.target.dataset.cat;

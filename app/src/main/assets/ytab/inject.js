@@ -1,5 +1,5 @@
 // 유튜브 페이지 안(MAIN world)에서 동작하는 핵심 스크립트.
-// 1) 전체 차단 모드: 영상 데이터에서 광고 정보(adPlacements 등)를 미리 지워 광고가 아예 안 붙게 함
+// 1) 전체 차단 모드: 유튜브 데이터에서 광고 정보를 미리 지워 광고가 아예 안 붙게 함 ('미리 제거' 방식)
 // 2) 그래도 광고가 재생되면: 광고 정보를 읽어 분석 → 차단 대상이면 음소거·고속재생·건너뛰기
 // 3) 피드/검색/사이드의 배너형 광고도 분석해 숨김
 (() => {
@@ -9,7 +9,7 @@
 
   const C = window.YTAB_CLASSIFIER;
   const origParse = JSON.parse;
-  const DEFAULTS = { enabled: true, mode: 'all', blockedCategories: [], blockedAdvertisers: [] };
+  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', blockedCategories: [], blockedAdvertisers: [] };
 
   // ---------- 설정 읽기 (content.js가 html 태그 속성/로컬스토리지에 넣어줌) ----------
   function settings() {
@@ -19,33 +19,56 @@
     } catch (e) { /* 무시 */ }
     return DEFAULTS;
   }
+  // 피드·검색 광고 데이터 제거: 전체 차단 모드면 항상
   const shouldStrip = () => { const s = settings(); return s.enabled && s.mode === 'all'; };
+  // 영상 광고 데이터 제거: '미리 제거' 방식일 때만 ('빨리 넘기기' 방식이면 영상 데이터는 그대로 두고 재생 중 건너뜀)
+  const shouldStripPlayer = () => { const s = settings(); return shouldStrip() && s.method !== 'skip'; };
 
   function report(payload) {
     window.postMessage({ __ytab: true, ...payload }, location.origin);
   }
 
-  // ---------- 1. 데이터 단계에서 광고 제거 ----------
-  const AD_KEYS = ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams'];
+  // ---------- 1. 데이터 단계에서 광고 제거 (강화판) ----------
+  // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
+  // enforcementMessageViewModel = "광고 차단기 사용 중" 경고창
+  const AD_KEYS = ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams', 'adBreakParams', 'enforcementMessageViewModel'];
+  const AD_RE = /"(adPlacements|playerAds|adSlots|adBreakHeartbeatParams|adBreakParams|enforcementMessageViewModel)"/;
   let pendingStripped = 0;
 
-  function strip(obj, depth = 0) {
-    if (!obj || typeof obj !== 'object' || depth > 3) return;
-    if (Array.isArray(obj)) { obj.forEach(o => strip(o, depth + 1)); return; }
-    // 영상 재생 데이터에서 광고를 지우면 유튜브가 눈치채고 광고 길이만큼 까만 화면으로 기다리게 함.
-    // 그래서 영상 광고는 지우지 않고, 재생되자마자 아래 2번에서 바로 건너뜀. (피드·검색 광고만 미리 지움)
-    const isPlayer = obj.videoDetails || obj.playabilityStatus || obj.streamingData;
-    if (isPlayer) return;
-    for (const k of AD_KEYS) {
-      if (k in obj) {
-        if (Array.isArray(obj[k])) pendingStripped += obj[k].length;
-        else pendingStripped += 1;
-        delete obj[k];
+  const isPlayerObj = o => !!(o.videoDetails || o.playabilityStatus || o.streamingData);
+
+  function strip(obj, depth = 0, inPlayer = false) {
+    if (!obj || typeof obj !== 'object' || depth > 24) return;
+    if (Array.isArray(obj)) {
+      for (const o of obj) if (o && typeof o === 'object') strip(o, depth + 1, inPlayer);
+      return;
+    }
+    const player = inPlayer || isPlayerObj(obj);
+    const allowed = player ? shouldStripPlayer() : true;
+    if (allowed) {
+      for (const k of AD_KEYS) {
+        if (k in obj) {
+          pendingStripped += Array.isArray(obj[k]) ? obj[k].length : 1;
+          delete obj[k];
+        }
       }
     }
-    if (obj.playerResponse) strip(obj.playerResponse, depth + 1);
-    if (Array.isArray(obj)) obj.forEach(o => strip(o, depth + 1));
+    for (const k in obj) {
+      const v = obj[k];
+      if (v && typeof v === 'object') strip(v, depth + 1, player);
+    }
   }
+
+  function stripText(txt) {
+    if (typeof txt !== 'string' || !AD_RE.test(txt)) return txt;
+    try {
+      const o = origParse(txt);
+      strip(o);
+      return JSON.stringify(o);
+    } catch (e) { return txt; }
+  }
+
+  const API_RE = /\/youtubei\/v1\/(player|next|browse|search|reel|guide)/;
 
   setInterval(() => {
     if (pendingStripped > 0) {
@@ -54,21 +77,67 @@
     }
   }, 2000);
 
+  // (1) 페이지가 JSON 글자를 객체로 바꿀 때
   JSON.parse = function (...args) {
     const r = origParse.apply(this, args);
-    try { if (shouldStrip()) strip(r); } catch (e) { /* 무시 */ }
+    try {
+      if (shouldStrip() && typeof args[0] === 'string' && AD_RE.test(args[0])) strip(r);
+    } catch (e) { /* 무시 */ }
     return r;
   };
 
+  // (2) fetch 응답을 json()/text()로 읽을 때
   const origJson = Response.prototype.json;
   Response.prototype.json = async function (...args) {
     const r = await origJson.apply(this, args);
     try { if (shouldStrip()) strip(r); } catch (e) { /* 무시 */ }
     return r;
   };
+  const origText = Response.prototype.text;
+  Response.prototype.text = async function (...args) {
+    const t = await origText.apply(this, args);
+    try { if (shouldStrip() && API_RE.test(this.url || '')) return stripText(t); } catch (e) { /* 무시 */ }
+    return t;
+  };
 
-  for (const name of ['ytInitialPlayerResponse', 'ytInitialData']) {
+  // (3) 옛날 방식 통신(XMLHttpRequest)으로 받을 때
+  const origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    try { this.__ytabApi = API_RE.test(String(url)); } catch (e) { /* 무시 */ }
+    return origOpen.call(this, method, url, ...rest);
+  };
+  const rtDesc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'responseText');
+  const rDesc = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'response');
+  if (rtDesc && rtDesc.get) {
+    Object.defineProperty(XMLHttpRequest.prototype, 'responseText', {
+      configurable: true,
+      get() {
+        const t = rtDesc.get.call(this);
+        if (this.__ytabApi && this.readyState === 4 && shouldStrip()) {
+          if (this.__ytabCache === undefined) this.__ytabCache = stripText(t);
+          return this.__ytabCache;
+        }
+        return t;
+      }
+    });
+  }
+  if (rDesc && rDesc.get) {
+    Object.defineProperty(XMLHttpRequest.prototype, 'response', {
+      configurable: true,
+      get() {
+        const r = rDesc.get.call(this);
+        if (!this.__ytabApi || this.readyState !== 4 || !shouldStrip()) return r;
+        if (typeof r === 'string') return this.responseText;
+        if (r && typeof r === 'object' && !(r instanceof ArrayBuffer) && !(r instanceof Blob)) { try { strip(r); } catch (e) { /* 무시 */ } }
+        return r;
+      }
+    });
+  }
+
+  // (4) 페이지에 처음부터 박혀 오는 데이터
+  for (const name of ['ytInitialPlayerResponse', 'ytInitialData', 'ytInitialReelWatchSequenceResponse']) {
     let value = window[name];
+    try { if (value && shouldStrip()) strip(value); } catch (e) { /* 무시 */ }
     try {
       Object.defineProperty(window, name, {
         configurable: true,

@@ -13,3 +13,6 @@ body { width: auto; max-width: 640px; margin: 0 auto; padding: 16px; font-size: 
   .tag, .mini { background: #2a2a2a; color: #ccc; }
   #adv-input { background: #1e1e1e; color: #eee; border-color: #333; }
 }
+
+#method-box .label { display: block; margin-bottom: 6px; font-size: 13px; }
+#method-box.dim { opacity: .45; }
