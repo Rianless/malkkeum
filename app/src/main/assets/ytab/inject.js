@@ -59,6 +59,25 @@
     } catch (e) { return where; }
   }
 
+  // ---------- 0. 유튜브의 '5초 지연' 없애기 ----------
+  // 광고 차단을 눈치채면 유튜브가 영상 시작 전에 5초짜리 대기 타이머를 거는데,
+  // 그 타이머(5초 근처 + resolve 호출)를 찾아 바로 끝나게 바꿈.
+  const origSetTimeout = window.setTimeout;
+  window.setTimeout = function (fn, delay, ...rest) {
+    try {
+      if (typeof fn === 'function' && delay >= 4000 && delay <= 6000 && shouldStrip()) {
+        const src = Function.prototype.toString.call(fn);
+        if (/resolve\(1\)|\.resolve\(|resolve\(\)/.test(src) && src.length < 400) {
+          if (typeof diag === 'function') diag('5초지연제거', String(delay));
+          return origSetTimeout.call(this, fn, 1, ...rest);
+        }
+        // 못 잡은 5초 타이머도 진단에 남겨서 다음에 패턴을 고칠 수 있게
+        if (typeof diag === 'function') diag('5초타이머(그대로)', src.replace(/\s+/g, ' ').slice(0, 90));
+      }
+    } catch (e) { /* 무시 */ }
+    return origSetTimeout.call(this, fn, delay, ...rest);
+  };
+
   // ---------- 1. 데이터 단계에서 광고 제거 (강화판) ----------
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
   // enforcementMessageViewModel = "광고 차단기 사용 중" 경고창
