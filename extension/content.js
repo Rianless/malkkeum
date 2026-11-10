@@ -3,7 +3,7 @@
 // - 페이지에서 보낸 광고 분석 기록을 저장소에 쌓음
 (() => {
   'use strict';
-  const DEFAULTS = { enabled: true, mode: 'all', blockedCategories: [], blockedAdvertisers: [] };
+  const DEFAULTS = { enabled: true, mode: 'all', method: 'strip', stripKeys: ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams'], blockedCategories: [], blockedAdvertisers: [] };
   const MAX_LOG = 300;
 
   function pushSettings(s) {
@@ -26,6 +26,14 @@
     const msg = ev.data;
 
     enqueue(() => new Promise(resolve => {
+      if (msg.type === 'diag') {
+        chrome.storage.local.get('diag', d => {
+          let list = (d.diag || []).concat((msg.items || []).map(i => ({ ...i, at: Date.now() })));
+          if (list.length > 400) list = list.slice(-400);
+          chrome.storage.local.set({ diag: list }, resolve);
+        });
+        return;
+      }
       chrome.storage.local.get(['log', 'stats'], data => {
         const stats = Object.assign({ blocked: 0, analyzed: 0, stripped: 0 }, data.stats);
         let log = data.log || [];

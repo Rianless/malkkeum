@@ -26,10 +26,18 @@
     <p class="hint" id="mode-hint"></p>
   </section>
 
+  <section class="mode" id="method-box">
+    <b class="label">영상 광고 처리 방식</b>
+    <label><input type="radio" name="method" value="strip"> 미리 제거</label>
+    <label><input type="radio" name="method" value="skip"> 빨리 넘기기</label>
+    <p class="hint" id="method-hint"></p>
+  </section>
+
   <nav>
     <button class="tab on" data-tab="cats">카테고리</button>
     <button class="tab" data-tab="log">광고 기록</button>
     <button class="tab" data-tab="adv">차단 광고주</button>
+    <button class="tab" data-tab="diag">진단</button>
   </nav>
 
   <section class="panel" id="cats"></section>
@@ -40,6 +48,20 @@
       <button>추가</button>
     </form>
     <ul id="adv-list"></ul>
+  </section>
+
+  <section class="panel hidden" id="diag">
+    <p class="hint">영상을 2~3개 열어본 뒤 <b>복사</b>를 눌러 대화창에 붙여넣어 주세요. 숫자는 영상을 누른 뒤 지난 시간(ms)이에요.</p>
+    <div class="mode" id="keys-box">
+      <b class="label">실험: 영상 데이터에서 지울 항목</b>
+      <label><input type="checkbox" data-key="adPlacements"> adPlacements</label>
+      <label><input type="checkbox" data-key="playerAds"> playerAds</label>
+      <label><input type="checkbox" data-key="adSlots"> adSlots</label>
+      <label><input type="checkbox" data-key="adBreakHeartbeatParams"> adBreakHeartbeatParams</label>
+      <p class="hint">바꾼 뒤 영상을 새로 열어야 적용돼요. 지우지 않은 항목 때문에 광고가 나오면 가림막+16배속으로 넘겨요.</p>
+    </div>
+    <div class="diag-btns"><button id="diag-copy">복사</button><button id="diag-clear">지우기</button></div>
+    <pre id="diag-text"></pre>
   </section>
 
   <footer>

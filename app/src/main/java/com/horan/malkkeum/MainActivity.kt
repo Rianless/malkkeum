@@ -41,7 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pcButton: MaterialButton
     private val prefs by lazy { getSharedPreferences("malkkeum", MODE_PRIVATE) }
     private var pcMode: Boolean
-        get() = prefs.getBoolean("pcMode", true)
+        get() = prefs.getBoolean("pcMode", false)
         set(v) { prefs.edit().putBoolean("pcMode", v).apply() }
     private val home get() = if (pcMode) HOME_PC else HOME_MOBILE
 
