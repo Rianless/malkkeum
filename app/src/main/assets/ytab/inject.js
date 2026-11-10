@@ -33,6 +33,7 @@
   let navAt = performance.now();
   // 이번 영상에서: 요청 바꾸기가 적용됐는지 / 바꾸지 못한 데이터에 광고 흔적이 있었는지
   let editedSinceNav = false;
+  let guardLogged = false;
   let adDataSinceNav = false;
   let diagBuf = [];
   function diag(e, d) {
@@ -48,6 +49,8 @@
       navAt = performance.now();
       editedSinceNav = false;
       adDataSinceNav = false;
+      variant = 0;
+      guardLogged = false;
       nudged = false;
       diag('nav', location.pathname + location.search.slice(0, 20));
     }
@@ -95,13 +98,11 @@
   // (uBlock Origin 2026-11 유튜브 규칙 참고) 영상 요청(/player)에 표시를 바꿔 보내면
   // 서버가 광고 없이 응답 → 광고 길이만큼 기다리는 일이 안 생김.
   // 방법이 막히면(재생 불가) 다음 방법으로 바꿔서 영상을 다시 불러옴.
-  const VARIANTS = ['channel', 'lactmilli', 'yahi', 'inline', ''];
+  // 방법 순서. '요청 안 바꿈'은 쓰지 않음. 영상마다 첫 번째 방법부터 시작 (저장하지 않음)
+  const VARIANTS = ['channel', 'lactmilli', 'yahi', 'inline'];
   let variant = 0;
-  try { variant = Math.min(VARIANTS.length - 1, parseInt(sessionStorage.getItem('ytab_variant') || '0', 10) || 0); } catch (e) { /* 무시 */ }
-  function setVariant(i) {
-    variant = Math.min(VARIANTS.length - 1, i);
-    try { sessionStorage.setItem('ytab_variant', String(variant)); } catch (e) { /* 무시 */ }
-  }
+  try { sessionStorage.removeItem('ytab_variant'); } catch (e) { /* 무시 */ }
+  function setVariant(i) { variant = Math.min(VARIANTS.length - 1, i); }
   const isPC = () => location.hostname === 'www.youtube.com';
 
   function editPlayerRequest(o) {
@@ -179,7 +180,11 @@
 
     // (1) 요청을 바꾸지 못한 경로로 받은 영상에 광고 흔적이 있으면 → 기다리지 말고 바로 다시 요청
     //     (다시 요청할 땐 요청 바꾸기가 적용돼서 서버가 광고 없이 바로 보내줌)
-    if (adDataSinceNav && !editedSinceNav && reloadedFor !== vid && VARIANTS[variant]) {
+    if (!guardLogged && v && performance.now() - navAt > 1500) {
+      guardLogged = true;
+      diag('판단', `광고흔적:${adDataSinceNav} 요청수정:${editedSinceNav} 방법:${VARIANTS[variant]} 다시요청함:${reloadedFor === vid} rs${v.readyState}`);
+    }
+    if (adDataSinceNav && !editedSinceNav && reloadedFor !== vid) {
       const playing = v && v.readyState >= 3 && !v.paused && v.currentTime > 0.3;
       if (!playing) {
         reloadedFor = vid;
