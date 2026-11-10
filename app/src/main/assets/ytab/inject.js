@@ -158,13 +158,38 @@
   let rotatedFor = '';
   let reloadedFor = '';
   let lastEditAt = 0;
+  // 판단 코드가 어디서 멈췄는지 영상마다 한 번만 기록
+  let stopLogged = '';
+  function stop(reason) {
+    const key = location.pathname + location.search + ':' + reason;
+    if (stopLogged === key) return;
+    stopLogged = key;
+    if (performance.now() - navAt > 1200) diag('판단멈춤', reason);
+  }
+  // 플레이어 조작 기능 찾기 (PC 유튜브는 두 군데 중 한 곳에 있음)
+  function findPlayerApi() {
+    const el = document.getElementById('movie_player');
+    if (el && typeof el.getPlayerResponse === 'function') return el;
+    const ytdPlayer = document.querySelector('ytd-player');
+    try {
+      const api = ytdPlayer && typeof ytdPlayer.getPlayer === 'function' && ytdPlayer.getPlayer();
+      if (api && typeof api.getPlayerResponse === 'function') return api;
+    } catch (e) { /* 무시 */ }
+    try {
+      const api2 = ytdPlayer && ytdPlayer.player_;
+      if (api2 && typeof api2.getPlayerResponse === 'function') return api2;
+    } catch (e) { /* 무시 */ }
+    return null;
+  }
+
   function watchGuard() {
     if (!isPC() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
-    const p = document.getElementById('movie_player');
-    if (!p || !p.getPlayerResponse) return;
+    const p = findPlayerApi();
+    if (!p) return stop('플레이어 조작 기능 못 찾음');
     let resp, stats, prog;
-    try { resp = p.getPlayerResponse(); stats = p.getStatsForNerds && p.getStatsForNerds(); prog = p.getProgressState && p.getProgressState(); } catch (e) { return; }
-    if (!resp) return;
+    try { resp = p.getPlayerResponse(); stats = p.getStatsForNerds && p.getStatsForNerds(); prog = p.getProgressState && p.getProgressState(); }
+    catch (e) { return stop('플레이어 정보 읽기 오류 ' + (e && e.message || '')); }
+    if (!resp) return stop('영상 정보 없음');
     // 영상에 붙어 온 광고 구간이면 끝으로 넘김
     if (stats && typeof stats.debug_info === 'string' && stats.debug_info.startsWith('SSAP, AD') && prog && prog.duration > 0) {
       diag('붙은광고넘김', prog.duration.toFixed(1) + 's');
@@ -173,23 +198,23 @@
     }
     const vid = resp.videoDetails && resp.videoDetails.videoId;
     // 아직 이전 영상 정보면 건너뜀 (주소의 v= 와 같을 때만)
-    if (!vid || new URLSearchParams(location.search).get('v') !== vid) return;
+    if (!vid || new URLSearchParams(location.search).get('v') !== vid) return stop('이전 영상 정보 ' + (vid || '-'));
     const start = (resp.playerConfig && resp.playerConfig.playbackStartConfig && resp.playerConfig.playbackStartConfig.startSeconds) ||
       parseInt(new URLSearchParams(location.search).get('t') || '0', 10) || 0;
-    const v = p.querySelector('video');
+    const v = document.querySelector('#movie_player video, ytd-player video, video');
 
     // (1) 요청을 바꾸지 못한 경로로 받은 영상에 광고 흔적이 있으면 → 기다리지 말고 바로 다시 요청
     //     (다시 요청할 땐 요청 바꾸기가 적용돼서 서버가 광고 없이 바로 보내줌)
-    if (!guardLogged && v && performance.now() - navAt > 1500) {
+    if (!guardLogged && performance.now() - navAt > 1500) {
       guardLogged = true;
-      diag('판단', `광고흔적:${adDataSinceNav} 요청수정:${editedSinceNav} 방법:${VARIANTS[variant]} 다시요청함:${reloadedFor === vid} rs${v.readyState}`);
+      diag('판단', `광고흔적:${adDataSinceNav} 요청수정:${editedSinceNav} 방법:${VARIANTS[variant]} 다시요청함:${reloadedFor === vid} rs${v ? v.readyState : '-'}`);
     }
     if (adDataSinceNav && !editedSinceNav && reloadedFor !== vid) {
       const playing = v && v.readyState >= 3 && !v.paused && v.currentTime > 0.3;
       if (!playing) {
         reloadedFor = vid;
         diag('바로다시요청', '바꾸지 못한 요청 → ' + VARIANTS[variant]);
-        try { p.loadVideoById(vid, start); } catch (e) { /* 무시 */ }
+        try { p.loadVideoById(vid, start); } catch (e) { diag('다시요청오류', String(e && e.message || e)); }
         return;
       }
     }
@@ -204,10 +229,10 @@
       rotatedFor = vid + ':' + variant;
       setVariant(variant + 1);
       diag('방법변경', (unplayable ? '재생불가' : '멈춤') + ' → ' + (VARIANTS[variant] || '없음'));
-      try { p.loadVideoById(vid, start); } catch (e) { /* 무시 */ }
+      try { p.loadVideoById(vid, start); } catch (e) { diag('다시요청오류', String(e && e.message || e)); }
     }
   }
-  setInterval(watchGuard, 500);
+  setInterval(() => { try { watchGuard(); } catch (e) { stop('오류 ' + (e && e.message || e)); } }, 500);
 
   // ---------- 1. 데이터 단계에서 광고 제거 (강화판) ----------
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
