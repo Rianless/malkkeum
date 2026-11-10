@@ -8,6 +8,16 @@
 
   // ---------- 쇼츠 댓글: 앱처럼 영상은 위로 작아지고 아래에 댓글 ----------
   // 특정 부품 이름에 기대지 않고, '화면 아래에 붙어 올라온 큰 창'을 찾아 그 위 공간에 영상을 맞춤
+  // 부모까지 곱한 실제 투명도 (닫히는 중인 창은 투명해짐)
+  function effectiveOpacity(el) {
+    let o = 1;
+    for (let e = el; e && e !== document.documentElement; e = e.parentElement) {
+      o *= parseFloat(getComputedStyle(e).opacity) || 0;
+      if (o < 0.5) return o;
+    }
+    return o;
+  }
+
   function findBottomSheet() {
     // 화면 아래쪽 가운데 지점에 있는 부품에서 위로 올라가며, 아래에 붙은 큰 창을 찾음 (가볍게)
     const probe = document.elementFromPoint(window.innerWidth / 2, vh() - 30);
@@ -20,6 +30,8 @@
       if (r.width < window.innerWidth * 0.9) continue;
       if (Math.abs(r.bottom - vh()) > 6) continue;
       if (r.height < vh() * 0.3 || r.height > vh() * 0.92 || r.top < 40) continue;
+      if (effectiveOpacity(el) < 0.5) return null;          // 닫히는 중(투명해짐)이면 닫힌 걸로
+      if (cs.pointerEvents === 'none') return null;
       return { el, r };
     }
     return null;
@@ -132,7 +144,11 @@
   `;
   (document.head || document.documentElement).appendChild(style);
 
-  setInterval(syncShortsComments, 250);
+  setInterval(syncShortsComments, 150);
+  // 화면을 만지거나 쓸어내릴 때 바로 확인
+  for (const ev of ['touchend', 'click', 'transitionend', 'animationend']) {
+    document.addEventListener(ev, () => { setTimeout(syncShortsComments, 30); setTimeout(syncShortsComments, 180); }, true);
+  }
 
   // ---------- 화면 구조 기록: '기록' 버튼을 길게 누르면 ----------
   function describe(el) {
