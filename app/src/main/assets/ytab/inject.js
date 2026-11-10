@@ -99,18 +99,23 @@
   // 서버가 광고 없이 응답 → 광고 길이만큼 기다리는 일이 안 생김.
   // 방법이 막히면(재생 불가) 다음 방법으로 바꿔서 영상을 다시 불러옴.
   // 방법 순서. '요청 안 바꿈'은 쓰지 않음. 영상마다 첫 번째 방법부터 시작 (저장하지 않음)
-  const VARIANTS = ['channel', 'lactmilli', 'yahi', 'inline'];
+  // PC는 uBlock Origin 순서 그대로, 모바일은 어느 기기에서나 통하는 'inline'(광고 없는 미리보기 재생)부터
+  const VARIANTS_PC = ['channel', 'lactmilli', 'yahi', 'inline'];
+  const VARIANTS_M = ['inline', 'lactmilli', 'yahi', 'channel'];
+  const isMobileSite = () => location.hostname === 'm.youtube.com';
+  const VARIANTS = new Proxy([], { get: (t, k) => (isMobileSite() ? VARIANTS_M : VARIANTS_PC)[k] });
   let variant = 0;
   try { sessionStorage.removeItem('ytab_variant'); } catch (e) { /* 무시 */ }
-  function setVariant(i) { variant = Math.min(VARIANTS.length - 1, i); }
+  function setVariant(i) { variant = Math.min(VARIANTS_PC.length - 1, i); }
   const isPC = () => location.hostname === 'www.youtube.com';
+  const isYT = () => isPC() || isMobileSite();
 
   function editPlayerRequest(o) {
     const v = VARIANTS[variant];
     if (!v) return;
     const cpc = o.playbackContext && o.playbackContext.contentPlaybackContext;
     const client = o.context && o.context.client;
-    if (v === 'channel' && client && client.clientName === 'WEB') client.clientScreen = 'CHANNEL';
+    if (v === 'channel' && client && (client.clientName === 'WEB' || client.clientName === 'MWEB')) client.clientScreen = 'CHANNEL';
     if (v === 'lactmilli') o.params = '8AUB';
     if (v === 'yahi') o.params = 'YAHI';
     if (v === 'inline' && cpc) cpc.isInlinePlaybackNoAd = true;
@@ -120,12 +125,13 @@
 
   patchMethod(JSON, 'stringify', real => function stringify(value, ...rest) {
     try {
-      if (value && typeof value === 'object' && value.attestationRequest && isPC() && shouldStripPlayer() &&
-          value.playbackContext && value.playbackContext.contentPlaybackContext) {
+      const isPlayerReq = value && typeof value === 'object' && value.playbackContext && value.playbackContext.contentPlaybackContext &&
+        (isPC() ? !!value.attestationRequest : (isMobileSite() && !!value.videoId));
+      if (isPlayerReq && shouldStripPlayer()) {
         editPlayerRequest(value);
         editedSinceNav = true;
         lastEditAt = performance.now();
-        diag('요청수정', VARIANTS[variant] || '없음');
+        diag('요청수정', (isMobileSite() ? '모바일 ' : 'PC ') + (VARIANTS[variant] || '없음'));
       }
     } catch (e) { /* 무시 */ }
     return real.call(this, value, ...rest);
@@ -145,7 +151,7 @@
   // '이상 행동 감지' 처리 무력화
   patchMethod(Promise.prototype, 'then', real => function then(onFulfilled, ...rest) {
     try {
-      if (typeof onFulfilled === 'function' && isPC() && shouldStrip() &&
+      if (typeof onFulfilled === 'function' && isYT() && shouldStrip() &&
           nativeToString.call(onFulfilled).includes('onAbnormalityDetected')) {
         diag('이상감지무력화', '');
         onFulfilled = function () {};
@@ -188,9 +194,9 @@
   function watchGuard() {
     if (/\/watch/.test(location.pathname) && aliveFor !== location.search && performance.now() - navAt > 1200) {
       aliveFor = location.search;
-      diag('판단시작', `PC:${isPC()} 미리제거:${shouldStripPlayer()}`);
+      diag('판단시작', `${isPC() ? 'PC' : isMobileSite() ? '모바일' : location.hostname} 미리제거:${shouldStripPlayer()}`);
     }
-    if (!isPC() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
+    if (!isYT() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
     const p = findPlayerApi();
     if (!p) return stop('플레이어 조작 기능 못 찾음');
     let resp, stats, prog;
@@ -232,7 +238,7 @@
     const err = JSON.stringify(status.errorScreen || {});
     const unplayable = status.status === 'UNPLAYABLE' && err.includes('3037019');
     const stalled = v && v.readyState === 0 && performance.now() - lastEditAt > 2500 && !document.querySelector('.ad-showing');
-    if ((unplayable || stalled) && variant < VARIANTS.length - 1) {
+    if ((unplayable || stalled) && variant < VARIANTS_PC.length - 1) {
       rotatedFor = vid + ':' + variant;
       setVariant(variant + 1);
       diag('방법변경', (unplayable ? '재생불가' : '멈춤') + ' → ' + (VARIANTS[variant] || '없음'));
