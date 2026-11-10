@@ -264,6 +264,30 @@
   }
   let pendingStripped = 0;
 
+  // ---------- 댓글 정렬 정보 (모바일 댓글에 인기순·최신순 버튼용, comments.js로 넘겨줌) ----------
+  function sortToken(o, depth = 0) {
+    if (!o || typeof o !== 'object' || depth > 12) return null;
+    if (o.continuationCommand && o.continuationCommand.token) return o.continuationCommand.token;
+    if (o.reloadContinuationData && o.reloadContinuationData.continuation) return o.reloadContinuationData.continuation;
+    for (const k in o) { const t = sortToken(o[k], depth + 1); if (t) return t; }
+    return null;
+  }
+  function collectSort(o, depth = 0) {
+    if (!o || typeof o !== 'object' || depth > 40) return;
+    const sm = o.sortFilterSubMenuRenderer;
+    if (sm && Array.isArray(sm.subMenuItems)) {
+      const items = sm.subMenuItems.map(it => ({
+        title: it.title || (it.text && it.text.simpleText) || '',
+        token: sortToken(it.serviceEndpoint || it.continuation || it),
+        selected: !!it.selected
+      })).filter(x => x.token);
+      if (items.length) document.dispatchEvent(new CustomEvent('malkkeum-sort', { detail: items }));
+      return;
+    }
+    for (const k in o) { const v = o[k]; if (v && typeof v === 'object') collectSort(v, depth + 1); }
+  }
+  const SORT_MARK = 'sortFilterSubMenuRenderer';
+
   const isPlayerObj = o => !!(o.videoDetails || o.playabilityStatus || o.streamingData);
 
   function strip(obj, depth = 0, inPlayer = false) {
@@ -317,6 +341,7 @@
   // (1) 페이지가 JSON 글자를 객체로 바꿀 때
   patchMethod(JSON, 'parse', real => function parse(...args) {
     const r = real.apply(this, args);
+    try { if (typeof args[0] === 'string' && args[0].includes(SORT_MARK)) collectSort(r); } catch (e) { /* 무시 */ }
     try {
       if (shouldStrip() && typeof args[0] === 'string' && AD_RE.test(args[0])) {
         foundKeys = [];
@@ -335,6 +360,7 @@
     const r = await real.apply(this, args);
     try {
       const api = API_RE.exec(this.url || '');
+      if (api) collectSort(r);
       foundKeys = [];
       if (shouldStrip()) strip(r);
       if (api) diag('응답', describe(r, 'fetch.json ' + api[1]));
@@ -345,6 +371,7 @@
     const t = await real.apply(this, args);
     try {
       const api = API_RE.exec(this.url || '');
+      if (typeof t === 'string' && t.includes(SORT_MARK)) { try { collectSort(origParse(t)); } catch (e) { /* 무시 */ } }
       if (api) {
         foundKeys = [];
         const out = shouldStrip() ? stripText(t) : t;
