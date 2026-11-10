@@ -86,6 +86,99 @@
     Object.defineProperty(obj, key, { value: fake, writable: d.writable !== false, configurable: true, enumerable: !!d.enumerable });
   }
 
+  // ---------- 0-1. 요청 단계: 서버가 처음부터 광고 없는 영상을 주게 ----------
+  // (uBlock Origin 2026-11 유튜브 규칙 참고) 영상 요청(/player)에 표시를 바꿔 보내면
+  // 서버가 광고 없이 응답 → 광고 길이만큼 기다리는 일이 안 생김.
+  // 방법이 막히면(재생 불가) 다음 방법으로 바꿔서 영상을 다시 불러옴.
+  const VARIANTS = ['channel', 'lactmilli', 'yahi', 'inline', ''];
+  let variant = 0;
+  try { variant = Math.min(VARIANTS.length - 1, parseInt(sessionStorage.getItem('ytab_variant') || '0', 10) || 0); } catch (e) { /* 무시 */ }
+  function setVariant(i) {
+    variant = Math.min(VARIANTS.length - 1, i);
+    try { sessionStorage.setItem('ytab_variant', String(variant)); } catch (e) { /* 무시 */ }
+  }
+  const isPC = () => location.hostname === 'www.youtube.com';
+
+  function editPlayerRequest(o) {
+    const v = VARIANTS[variant];
+    if (!v) return;
+    const cpc = o.playbackContext && o.playbackContext.contentPlaybackContext;
+    const client = o.context && o.context.client;
+    if (v === 'channel' && client && client.clientName === 'WEB') client.clientScreen = 'CHANNEL';
+    if (v === 'lactmilli') o.params = '8AUB';
+    if (v === 'yahi') o.params = 'YAHI';
+    if (v === 'inline' && cpc) cpc.isInlinePlaybackNoAd = true;
+    if (cpc && (v === 'channel' || v === 'lactmilli' || v === 'inline')) cpc.lactMilliseconds = String(Date.now());
+    if (cpc && typeof cpc.referer === 'string') cpc.referer = cpc.referer.replace(/(?:#reloadxhr)?$/, '#reloadxhr');
+  }
+
+  patchMethod(JSON, 'stringify', real => function stringify(value, ...rest) {
+    try {
+      if (value && typeof value === 'object' && value.attestationRequest && isPC() && shouldStripPlayer() &&
+          value.playbackContext && value.playbackContext.contentPlaybackContext) {
+        editPlayerRequest(value);
+        diag('요청수정', VARIANTS[variant] || '없음');
+      }
+    } catch (e) { /* 무시 */ }
+    return real.call(this, value, ...rest);
+  });
+
+  // 유튜브가 거는 17초짜리 대기 타이머를 거의 0초로
+  patchMethod(window, 'setTimeout', real => function setTimeout(fn, delay, ...rest) {
+    try {
+      if (delay === 17000 && typeof fn === 'function' && shouldStrip() && nativeToString.call(fn).includes('[native code]')) {
+        diag('대기타이머단축', '17000ms');
+        return real.call(this, fn, 17, ...rest);
+      }
+    } catch (e) { /* 무시 */ }
+    return real.call(this, fn, delay, ...rest);
+  });
+
+  // '이상 행동 감지' 처리 무력화
+  patchMethod(Promise.prototype, 'then', real => function then(onFulfilled, ...rest) {
+    try {
+      if (typeof onFulfilled === 'function' && isPC() && shouldStrip() &&
+          nativeToString.call(onFulfilled).includes('onAbnormalityDetected')) {
+        diag('이상감지무력화', '');
+        onFulfilled = function () {};
+      }
+    } catch (e) { /* 무시 */ }
+    return real.call(this, onFulfilled, ...rest);
+  });
+
+  // 재생 불가·멈춤 감시 → 다음 방법으로 다시 불러오기, 영상에 붙은 광고(SSAP)는 끝으로 넘기기
+  let rotatedFor = '';
+  function watchGuard() {
+    if (!isPC() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
+    const p = document.getElementById('movie_player');
+    if (!p || !p.getPlayerResponse) return;
+    let resp, stats, prog;
+    try { resp = p.getPlayerResponse(); stats = p.getStatsForNerds && p.getStatsForNerds(); prog = p.getProgressState && p.getProgressState(); } catch (e) { return; }
+    if (!resp) return;
+    // 영상에 붙어 온 광고 구간이면 끝으로 넘김
+    if (stats && typeof stats.debug_info === 'string' && stats.debug_info.startsWith('SSAP, AD') && prog && prog.duration > 0) {
+      diag('붙은광고넘김', prog.duration.toFixed(1) + 's');
+      try { p.seekTo(prog.duration); } catch (e) { /* 무시 */ }
+      return;
+    }
+    const vid = resp.videoDetails && resp.videoDetails.videoId;
+    if (!vid || rotatedFor === vid + ':' + variant) return;
+    const status = resp.playabilityStatus || {};
+    const err = JSON.stringify(status.errorScreen || {});
+    const unplayable = status.status === 'UNPLAYABLE' && err.includes('3037019');
+    const v = p.querySelector('video');
+    const stalled = v && v.readyState === 0 && performance.now() - navAt > 4500 && !document.querySelector('.ad-showing');
+    if ((unplayable || stalled) && variant < VARIANTS.length - 1) {
+      rotatedFor = vid + ':' + variant;
+      setVariant(variant + 1);
+      diag('방법변경', (unplayable ? '재생불가' : '멈춤') + ' → ' + (VARIANTS[variant] || '없음'));
+      const start = (resp.playerConfig && resp.playerConfig.playbackStartConfig && resp.playerConfig.playbackStartConfig.startSeconds) ||
+        parseInt(new URLSearchParams(location.search).get('t') || '0', 10) || 0;
+      try { p.loadVideoById(vid, start); } catch (e) { /* 무시 */ }
+    }
+  }
+  setInterval(watchGuard, 500);
+
   // ---------- 1. 데이터 단계에서 광고 제거 (강화판) ----------
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
   // enforcementMessageViewModel = "광고 차단기 사용 중" 경고창
