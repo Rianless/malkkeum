@@ -31,6 +31,9 @@
 
   // ---------- 진단 기록: 영상을 열고 재생되기까지 무슨 일이 언제 일어나는지 ----------
   let navAt = performance.now();
+  // 이번 영상에서: 요청 바꾸기가 적용됐는지 / 바꾸지 못한 데이터에 광고 흔적이 있었는지
+  let editedSinceNav = false;
+  let adDataSinceNav = false;
   let diagBuf = [];
   function diag(e, d) {
     diagBuf.push({ t: Math.round(performance.now() - navAt), e, d: d || '' });
@@ -43,6 +46,8 @@
     if (location.href !== lastHref) {
       lastHref = location.href;
       navAt = performance.now();
+      editedSinceNav = false;
+      adDataSinceNav = false;
       nudged = false;
       diag('nav', location.pathname + location.search.slice(0, 20));
     }
@@ -117,6 +122,8 @@
       if (value && typeof value === 'object' && value.attestationRequest && isPC() && shouldStripPlayer() &&
           value.playbackContext && value.playbackContext.contentPlaybackContext) {
         editPlayerRequest(value);
+        editedSinceNav = true;
+        lastEditAt = performance.now();
         diag('요청수정', VARIANTS[variant] || '없음');
       }
     } catch (e) { /* 무시 */ }
@@ -148,6 +155,8 @@
 
   // 재생 불가·멈춤 감시 → 다음 방법으로 다시 불러오기, 영상에 붙은 광고(SSAP)는 끝으로 넘기기
   let rotatedFor = '';
+  let reloadedFor = '';
+  let lastEditAt = 0;
   function watchGuard() {
     if (!isPC() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
     const p = document.getElementById('movie_player');
@@ -162,18 +171,34 @@
       return;
     }
     const vid = resp.videoDetails && resp.videoDetails.videoId;
-    if (!vid || rotatedFor === vid + ':' + variant) return;
+    // 아직 이전 영상 정보면 건너뜀 (주소의 v= 와 같을 때만)
+    if (!vid || new URLSearchParams(location.search).get('v') !== vid) return;
+    const start = (resp.playerConfig && resp.playerConfig.playbackStartConfig && resp.playerConfig.playbackStartConfig.startSeconds) ||
+      parseInt(new URLSearchParams(location.search).get('t') || '0', 10) || 0;
+    const v = p.querySelector('video');
+
+    // (1) 요청을 바꾸지 못한 경로로 받은 영상에 광고 흔적이 있으면 → 기다리지 말고 바로 다시 요청
+    //     (다시 요청할 땐 요청 바꾸기가 적용돼서 서버가 광고 없이 바로 보내줌)
+    if (adDataSinceNav && !editedSinceNav && reloadedFor !== vid && VARIANTS[variant]) {
+      const playing = v && v.readyState >= 3 && !v.paused && v.currentTime > 0.3;
+      if (!playing) {
+        reloadedFor = vid;
+        diag('바로다시요청', '바꾸지 못한 요청 → ' + VARIANTS[variant]);
+        try { p.loadVideoById(vid, start); } catch (e) { /* 무시 */ }
+        return;
+      }
+    }
+
+    // (2) 바꾼 요청인데도 재생 불가거나 멈춰 있으면 → 다음 방법으로
+    if (!editedSinceNav || rotatedFor === vid + ':' + variant) return;
     const status = resp.playabilityStatus || {};
     const err = JSON.stringify(status.errorScreen || {});
     const unplayable = status.status === 'UNPLAYABLE' && err.includes('3037019');
-    const v = p.querySelector('video');
-    const stalled = v && v.readyState === 0 && performance.now() - navAt > 4500 && !document.querySelector('.ad-showing');
+    const stalled = v && v.readyState === 0 && performance.now() - lastEditAt > 2500 && !document.querySelector('.ad-showing');
     if ((unplayable || stalled) && variant < VARIANTS.length - 1) {
       rotatedFor = vid + ':' + variant;
       setVariant(variant + 1);
       diag('방법변경', (unplayable ? '재생불가' : '멈춤') + ' → ' + (VARIANTS[variant] || '없음'));
-      const start = (resp.playerConfig && resp.playerConfig.playbackStartConfig && resp.playerConfig.playbackStartConfig.startSeconds) ||
-        parseInt(new URLSearchParams(location.search).get('t') || '0', 10) || 0;
       try { p.loadVideoById(vid, start); } catch (e) { /* 무시 */ }
     }
   }
@@ -254,6 +279,7 @@
         foundKeys = [];
         strip(r);
         if (foundKeys.length && (r && (r.playabilityStatus || r.playerResponse || r.videoDetails))) {
+          if (!editedSinceNav) adDataSinceNav = true;
           diag('광고데이터제거', 'JSON ' + [...new Set(foundKeys)].join('/'));
         }
       }
@@ -332,7 +358,7 @@
   for (const name of ['ytInitialPlayerResponse', 'ytInitialData', 'ytInitialReelWatchSequenceResponse']) {
     const existing = window[name];
     if (existing !== undefined) {
-      try { if (shouldStrip()) { foundKeys = []; strip(existing); diag('초기데이터', describe(existing, name)); } } catch (e) { /* 무시 */ }
+      try { if (shouldStrip()) { foundKeys = []; strip(existing); if (name === 'ytInitialPlayerResponse' && foundKeys.length) adDataSinceNav = true; diag('초기데이터', describe(existing, name)); } } catch (e) { /* 무시 */ }
       continue;
     }
     try {
@@ -344,7 +370,10 @@
           try {
             foundKeys = [];
             if (shouldStrip()) strip(v);
-            if (name !== 'ytInitialData') diag('초기데이터', describe(v, name));
+            if (name !== 'ytInitialData') {
+              if (name === 'ytInitialPlayerResponse' && foundKeys.length) adDataSinceNav = true;
+              diag('초기데이터', describe(v, name));
+            }
           } catch (e) { /* 무시 */ }
           Object.defineProperty(window, name, { value: v, writable: true, configurable: true, enumerable: true });
         }, function set() {})
