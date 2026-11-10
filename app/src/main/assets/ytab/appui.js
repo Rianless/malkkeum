@@ -43,19 +43,30 @@
   }
 
   let shrunk = null;
+  let missCount = 0;
   function syncShortsComments() {
     if (!isShorts()) { restore(); return; }
     const sheet = findBottomSheet();
-    const box = sheet && activeShortsBox();
-    if (!sheet || !box) { restore(); return; }
+    if (!sheet) {
+      // 창이 닫혔는지는 연속 두 번 확인한 뒤에만 되돌림 (잠깐 안 보이는 순간에 커지지 않게)
+      if (shrunk && ++missCount < 2) return;
+      restore();
+      return;
+    }
+    missCount = 0;
+    // 이미 줄여둔 영상이 있으면 계속 그걸 붙잡음 (줄어든 영상을 다시 찾다가 못 찾아 커지던 문제)
+    const box = (shrunk && shrunk.box.isConnected) ? shrunk.box : activeShortsBox();
+    if (!box) return;
     const avail = sheet.r.top;                          // 댓글 창 위에 남은 높이
     if (shrunk && shrunk.box !== box) restore();
     if (!shrunk) {
       // 줄이기 전의 원래 위치·크기를 기억 (줄인 뒤 다시 재면 작아진 값이 나오므로)
       const br = box.getBoundingClientRect();
-      shrunk = { box, prev: box.style.cssText, top: br.top, h: box.offsetHeight || br.height };
+      shrunk = { box, prev: box.style.cssText, top: br.top, h: box.offsetHeight || br.height, scale: -1 };
     }
     const scale = Math.max(0.2, Math.min(1, avail / shrunk.h));
+    if (Math.abs(scale - shrunk.scale) < 0.01) return;  // 크기가 거의 같으면 다시 안 건드림
+    shrunk.scale = scale;
     box.style.setProperty('transform-origin', 'top center', 'important');
     box.style.setProperty('transform', `translateY(${-shrunk.top}px) scale(${scale.toFixed(3)})`, 'important');
     box.style.setProperty('transition', 'transform .2s ease', 'important');
@@ -63,6 +74,7 @@
     document.documentElement.setAttribute('data-malkkeum-shorts-sheet', '');
   }
   function restore() {
+    missCount = 0;
     if (!shrunk) return;
     shrunk.box.style.cssText = shrunk.prev;
     shrunk = null;
