@@ -30,11 +30,29 @@ jobs:
           echo "GeckoView: ${V:-자동 선택}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
+      - name: 서명 키 풀기
+        env:
+          MALKKEUM_KEYSTORE_PASSWORD: ${{ secrets.MALKKEUM_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$MALKKEUM_KEYSTORE_PASSWORD" ]; then
+            echo "::error::GitHub Secrets에 MALKKEUM_KEYSTORE_PASSWORD가 없어요. 저장소 Settings > Secrets and variables > Actions에서 추가하세요."
+            exit 1
+          fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in app/signing/malkkeum-release.jks.enc \
+            -out "$RUNNER_TEMP/malkkeum-release.jks" \
+            -pass env:MALKKEUM_KEYSTORE_PASSWORD
+          echo "MALKKEUM_KEYSTORE=$RUNNER_TEMP/malkkeum-release.jks" >> "$GITHUB_ENV"
+
       - name: APK 만들기
+        env:
+          MALKKEUM_KEYSTORE_PASSWORD: ${{ secrets.MALKKEUM_KEYSTORE_PASSWORD }}
         run: gradle :app:assembleRelease --no-daemon --stacktrace -PgeckoVersion=${{ steps.gecko.outputs.version }}
 
       - name: 파일 이름 정리
-        run: cp app/build/outputs/apk/release/app-release.apk Malkkeum.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk Malkkeum.apk
+          rm -f "$RUNNER_TEMP/malkkeum-release.jks"
 
       - name: 릴리스에 올리기 (폰에서 바로 다운로드)
         uses: softprops/action-gh-release@v2

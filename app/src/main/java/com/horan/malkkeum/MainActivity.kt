@@ -121,6 +121,10 @@ class MainActivity : AppCompatActivity() {
             }
             start()
         }
+        // 새 버전 확인 (제목을 길게 누르면 직접 확인)
+        Updater.check(this)
+        findViewById<View>(R.id.titleLogo).setOnLongClickListener { Updater.check(this, manual = true); true }
+
         // 혹시 확장 준비가 너무 늦어지면 그냥 열어요.
         geckoView.postDelayed({ start() }, 8000)
     }
@@ -130,6 +134,11 @@ class MainActivity : AppCompatActivity() {
         started = true
         mainSession.loadUri(pendingUrl ?: home)
         pendingUrl = null
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Updater.resumePendingInstall(this)
     }
 
     override fun onNewIntent(intent: Intent) {

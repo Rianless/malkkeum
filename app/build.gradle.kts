@@ -26,23 +26,26 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
-    // 항상 같은 키로 서명해야 업데이트가 덮어 설치돼요. (저장소는 비공개로 유지하세요)
+    // 서명 키: GitHub Actions가 비밀번호(Secrets)로 암호화된 키를 풀어서 경로를 넘겨줌.
+    // 키가 없으면(직접 빌드 등) 디버그 키로 서명 → 이 APK는 기존 앱 위에 덮어 설치되지 않음.
+    val keystorePath = System.getenv("MALKKEUM_KEYSTORE")
+    val keystorePassword = System.getenv("MALKKEUM_KEYSTORE_PASSWORD")
+    val hasReleaseKey = keystorePath != null && keystorePassword != null && file(keystorePath).exists()
     signingConfigs {
         create("release") {
-            storeFile = file("malkkeum.keystore")
-            storePassword = "malkkeum"
-            keyAlias = "malkkeum"
-            keyPassword = "malkkeum"
+            if (hasReleaseKey) {
+                storeFile = file(keystorePath!!)
+                storePassword = keystorePassword
+                keyAlias = "malkkeum"
+                keyPassword = keystorePassword
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 
