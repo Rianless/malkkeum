@@ -42,6 +42,46 @@
     return box;
   }
 
+  // 댓글 창 뒤에 깔리는 반투명 검은 막(화면 어둡게 만드는 것) 찾기:
+  // 영상 자리 위에서 위로 올라가며, 화면 전체를 덮는 반투명 배경을 가진 부품
+  let scrim = null;
+  function alphaOf(bg) {
+    const m = /rgba?\(([^)]+)\)/.exec(bg || '');
+    if (!m) return 0;
+    const parts = m[1].split(',').map(x => parseFloat(x));
+    return parts.length === 4 ? parts[3] : 1;
+  }
+  function clearScrim(sheetTop) {
+    const y = Math.max(10, Math.min(sheetTop - 10, sheetTop / 2));
+    let el = document.elementFromPoint(window.innerWidth / 2, y);
+    for (; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+      if (el.querySelector && el.querySelector('video')) break;   // 영상 칸까지 내려오면 막이 없는 것
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      const a = alphaOf(cs.backgroundColor);
+      const covers = r.top <= 5 && r.height >= vh() * 0.5 && r.width >= window.innerWidth * 0.9;
+      if (covers && a > 0.05 && a < 0.95) {
+        if (!scrim || scrim.el !== el) {
+          restoreScrim();
+          scrim = { el, prev: el.style.cssText };
+        }
+        el.style.setProperty('background', 'transparent', 'important');
+        el.style.setProperty('background-color', 'transparent', 'important');
+        return;
+      }
+      if (covers && parseFloat(cs.opacity) < 0.95 && parseFloat(cs.opacity) > 0.05 && cs.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+        if (!scrim || scrim.el !== el) { restoreScrim(); scrim = { el, prev: el.style.cssText }; }
+        el.style.setProperty('opacity', '0', 'important');
+        return;
+      }
+    }
+  }
+  function restoreScrim() {
+    if (!scrim) return;
+    scrim.el.style.cssText = scrim.prev;
+    scrim = null;
+  }
+
   let shrunk = null;
   let missCount = 0;
   function syncShortsComments() {
@@ -54,6 +94,7 @@
       return;
     }
     missCount = 0;
+    clearScrim(sheet.r.top);
     // 이미 줄여둔 영상이 있으면 계속 그걸 붙잡음 (줄어든 영상을 다시 찾다가 못 찾아 커지던 문제)
     const box = (shrunk && shrunk.box.isConnected) ? shrunk.box : activeShortsBox();
     if (!box) return;
@@ -75,6 +116,7 @@
   }
   function restore() {
     missCount = 0;
+    restoreScrim();
     if (!shrunk) return;
     shrunk.box.style.cssText = shrunk.prev;
     shrunk = null;
