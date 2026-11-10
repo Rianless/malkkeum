@@ -13,7 +13,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
 import org.json.JSONObject
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
@@ -36,7 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var geckoView: GeckoView
     private lateinit var topBar: View
     private lateinit var counter: TextView
-    private lateinit var toggle: MaterialSwitch
+    private lateinit var toggle: PillToggle
     private lateinit var logButton: MaterialButton
     private lateinit var pcButton: MaterialButton
     private val prefs by lazy { getSharedPreferences("malkkeum", MODE_PRIVATE) }
