@@ -29,20 +29,83 @@
 
   // ---------- 2. 최신 댓글 불러오기 ----------
   function cfg() { return (window.ytcfg && window.ytcfg.data_) || {}; }
-  async function fetchComments(token) {
+
+  // 모바일(MWEB) 또는 PC(WEB) 방식으로 유튜브에 요청
+  function clientContext(kind) {
     const c = cfg();
-    const res = await fetch(`/youtubei/v1/next?prettyPrint=false${c.INNERTUBE_API_KEY ? '&key=' + c.INNERTUBE_API_KEY : ''}`, {
+    const base = (c.INNERTUBE_CONTEXT && c.INNERTUBE_CONTEXT.client) || {};
+    if (kind !== 'WEB') return c.INNERTUBE_CONTEXT;
+    return {
+      client: {
+        clientName: 'WEB',
+        clientVersion: String(base.clientVersion || c.INNERTUBE_CLIENT_VERSION || '2.20261101.00.00').replace(/^\d+\./, '2.'),
+        hl: base.hl || 'ko', gl: base.gl || 'KR'
+      }
+    };
+  }
+  async function innertube(endpoint, body, kind) {
+    const c = cfg();
+    const res = await fetch(`/youtubei/v1/${endpoint}?prettyPrint=false${c.INNERTUBE_API_KEY ? '&key=' + c.INNERTUBE_API_KEY : ''}`, {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: kind === 'WEB' ? 'omit' : 'same-origin',
       headers: {
         'Content-Type': 'application/json',
-        'X-Youtube-Client-Name': String(c.INNERTUBE_CONTEXT_CLIENT_NAME || 2),
-        'X-Youtube-Client-Version': String(c.INNERTUBE_CLIENT_VERSION || '')
+        'X-Youtube-Client-Name': kind === 'WEB' ? '1' : String(c.INNERTUBE_CONTEXT_CLIENT_NAME || 2),
+        'X-Youtube-Client-Version': clientContext(kind).client.clientVersion
       },
-      body: JSON.stringify({ context: c.INNERTUBE_CONTEXT, continuation: token })
+      body: JSON.stringify(Object.assign({ context: clientContext(kind) }, body))
     });
-    const data = nativeParse(await res.text());
-    return parseComments(data);
+    if (!res.ok) throw new Error('응답 ' + res.status);
+    return nativeParse(await res.text());
+  }
+  async function fetchComments(token, kind) {
+    return parseComments(await innertube('next', { continuation: token }, kind));
+  }
+
+  // 모바일은 정렬 정보를 안 보내서, 같은 영상의 댓글을 PC 방식으로 한 번 더 요청해 정렬 정보를 받음
+  function findCommentsContinuation(o, depth = 0) {
+    if (!o || typeof o !== 'object' || depth > 40) return null;
+    if (o.itemSectionRenderer && /comment/i.test(o.itemSectionRenderer.sectionIdentifier || '')) {
+      const t = findToken(o.itemSectionRenderer.contents);
+      if (t) return t;
+    }
+    if (o.engagementPanelSectionListRenderer && /comment/i.test(o.engagementPanelSectionListRenderer.panelIdentifier || '')) {
+      const t = findToken(o.engagementPanelSectionListRenderer.content);
+      if (t) return t;
+    }
+    for (const k in o) { const r = findCommentsContinuation(o[k], depth + 1); if (r) return r; }
+    return null;
+  }
+  function findSortItems(o, depth = 0) {
+    if (!o || typeof o !== 'object' || depth > 40) return null;
+    const sm = o.sortFilterSubMenuRenderer;
+    if (sm && Array.isArray(sm.subMenuItems)) {
+      return sm.subMenuItems.map(it => ({
+        title: it.title || '', token: findToken(it.serviceEndpoint || it.continuation || it), selected: !!it.selected
+      })).filter(x => x.token);
+    }
+    for (const k in o) { const r = findSortItems(o[k], depth + 1); if (r) return r; }
+    return null;
+  }
+  function currentVideoId() {
+    const m = location.pathname.match(/\/shorts\/([\w-]{6,})/);
+    if (m) return m[1];
+    return new URLSearchParams(location.search).get('v');
+  }
+  const pcSortCache = {};
+  async function getPcSortItems() {
+    const vid = currentVideoId();
+    if (!vid) throw new Error('영상 번호 없음');
+    if (pcSortCache[vid]) return pcSortCache[vid];
+    const watch = await innertube('next', { videoId: vid }, 'WEB');
+    const first = findCommentsContinuation(watch);
+    if (!first) throw new Error('PC 댓글 시작 정보 없음');
+    const firstPage = await innertube('next', { continuation: first }, 'WEB');
+    const items = findSortItems(firstPage);
+    if (!items || !items.length) throw new Error('PC 정렬 정보 없음');
+    report('댓글정렬정보', 'PC경유 ' + items.map(x => x.title).join(' / '));
+    pcSortCache[vid] = items;
+    return items;
   }
 
   function textOf(t) {
@@ -125,13 +188,16 @@
   (document.head || document.documentElement).appendChild(css);
 
   function findCommentsTitle() {
-    // 댓글 창 제목 '댓글'(또는 'Comments') 글자를 가진 보이는 부품
-    const it = document.evaluate("//*[normalize-space(text())='댓글' or normalize-space(text())='Comments']",
-      document.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-    for (let i = 0; i < it.snapshotLength; i++) {
-      const el = it.snapshotItem(i);
+    // 댓글 창 제목: '댓글'/'Comments'로 시작하는 짧은 글자를 가진, 화면 아래쪽 창 안의 부품
+    const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+      const t = (n.nodeValue || '').trim();
+      if (t !== '댓글' && t !== 'Comments' && !/^댓글\s*\d/.test(t)) continue;
+      const el = n.parentElement;
+      if (!el) continue;
       const r = el.getBoundingClientRect();
-      if (r.height > 0 && r.top > 40) return el;
+      if (r.height > 0 && r.top > 40 && r.top < window.innerHeight - 60) return el;
     }
     return null;
   }
@@ -140,7 +206,7 @@
       const cs = getComputedStyle(e);
       if (cs.position === 'fixed' || cs.position === 'absolute') {
         const r = e.getBoundingClientRect();
-        if (r.width >= window.innerWidth * 0.9 && Math.abs(r.bottom - window.innerHeight) < 8) return e;
+        if (r.width >= window.innerWidth * 0.9 && r.bottom >= window.innerHeight - 40) return e;
       }
     }
     return null;
@@ -156,13 +222,20 @@
     return row;
   }
 
-  let state = { mode: 'top', next: null, loading: false, videoKey: '' };
+  let state = { mode: 'top', next: null, loading: false, videoKey: '', kind: 'MWEB' };
 
+  let uiFailLogged = '';
+  function uiFail(reason) {
+    const k = location.pathname + ':' + reason;
+    if (uiFailLogged === k) return;
+    uiFailLogged = k;
+    report('댓글버튼', reason);
+  }
   function ensureUI() {
     const title = findCommentsTitle();
     if (!title) { cleanup(); return; }
     const sheet = sheetOf(title);
-    if (!sheet) return;
+    if (!sheet) { uiFail('댓글 창 틀을 못 찾음 (제목: ' + title.tagName.toLowerCase() + ')'); return; }
     const key = location.pathname + location.search;
     if (state.videoKey !== key) { cleanup(); state.videoKey = key; }
     let bar = document.getElementById('malkkeum-sort');
@@ -177,6 +250,7 @@
       });
       const row = headerRowOf(title, sheet);
       row.insertAdjacentElement('afterend', bar);
+      report('댓글버튼', '표시함');
     }
     // 최신순 목록 위치를 버튼 아래로 맞춤
     const list = document.getElementById('malkkeum-newest');
@@ -208,10 +282,19 @@
     }
     ensureUI();
     list.innerHTML = '<div class="msg">최신 댓글 불러오는 중…</div>';
-    const item = sortItems && (sortItems.find(x => /최신|new/i.test(x.title)) || sortItems[1]);
+    let item = sortItems && (sortItems.find(x => /최신|new/i.test(x.title)) || sortItems[1]);
+    state.kind = 'MWEB';
     if (!item) {
-      list.innerHTML = '<div class="msg">이 영상은 최신순 정보를 찾지 못했어요.<br>댓글 창을 닫았다 다시 열어보세요.</div>';
-      report('댓글정렬', '정렬 정보 없음');
+      try {
+        const pc = await getPcSortItems();
+        item = pc.find(x => /최신|new/i.test(x.title)) || pc[1];
+        state.kind = 'WEB';
+      } catch (e) {
+        report('댓글정렬오류', String(e && e.message || e));
+      }
+    }
+    if (!item) {
+      list.innerHTML = '<div class="msg">이 영상은 최신순 댓글을 불러오지 못했어요.</div>';
       return;
     }
     state.next = item.token;
@@ -223,7 +306,7 @@
     if (state.loading || !state.next || state.mode !== 'new') return;
     state.loading = true;
     try {
-      const { list: items, next } = await fetchComments(state.next);
+      const { list: items, next } = await fetchComments(state.next, state.kind);
       state.next = next;
       for (const c of items) list.appendChild(renderComment(c));
       if (!items.length && !list.children.length) list.innerHTML = '<div class="msg">댓글을 불러오지 못했어요.</div>';
