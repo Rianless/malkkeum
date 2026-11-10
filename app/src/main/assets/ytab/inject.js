@@ -161,11 +161,14 @@
   // 판단 코드가 어디서 멈췄는지 영상마다 한 번만 기록
   let stopLogged = '';
   function stop(reason) {
+    // 영상을 열고 1.2초가 지난 뒤에도 같은 이유로 멈춰 있을 때만, 영상마다 이유별로 한 번 기록
+    if (performance.now() - navAt < 1200) return;
     const key = location.pathname + location.search + ':' + reason;
     if (stopLogged === key) return;
     stopLogged = key;
-    if (performance.now() - navAt > 1200) diag('판단멈춤', reason);
+    diag('판단멈춤', reason);
   }
+  let aliveFor = '';
   // 플레이어 조작 기능 찾기 (PC 유튜브는 두 군데 중 한 곳에 있음)
   function findPlayerApi() {
     const el = document.getElementById('movie_player');
@@ -183,6 +186,10 @@
   }
 
   function watchGuard() {
+    if (/\/watch/.test(location.pathname) && aliveFor !== location.search && performance.now() - navAt > 1200) {
+      aliveFor = location.search;
+      diag('판단시작', `PC:${isPC()} 미리제거:${shouldStripPlayer()}`);
+    }
     if (!isPC() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
     const p = findPlayerApi();
     if (!p) return stop('플레이어 조작 기능 못 찾음');
