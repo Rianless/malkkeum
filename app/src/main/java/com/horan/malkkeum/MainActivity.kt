@@ -87,6 +87,17 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, if (checked) "광고 차단 켜짐" else "광고 차단 꺼짐", Toast.LENGTH_SHORT).show()
         }
         logButton.setOnClickListener { if (showingLog) showMain() else showLog() }
+        // 기록 버튼 길게 누르기: 지금 화면 구조를 진단에 남김 (UI를 정확히 고치기 위한 자료)
+        logButton.setOnLongClickListener {
+            val p = port
+            if (p == null || showingLog) {
+                Toast.makeText(this, "유튜브 화면에서 길게 눌러주세요", Toast.LENGTH_SHORT).show()
+            } else {
+                p.postMessage(JSONObject().put("type", "snapshot"))
+                Toast.makeText(this, "지금 화면 구조를 진단에 기록했어요", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
         pcButton.setOnClickListener {
             pcMode = !pcMode
             applyPcMode()

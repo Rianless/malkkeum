@@ -28,6 +28,9 @@
       await browser.storage.local.set({ settings: s });
     } else if (msg.type === 'getState') {
       sendState();
+    } else if (msg.type === 'snapshot') {
+      // 화면 구조 기록 (appui.js가 처리)
+      document.dispatchEvent(new CustomEvent('malkkeum-snapshot'));
     }
   });
 

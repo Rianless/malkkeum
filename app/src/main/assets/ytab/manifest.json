@@ -20,6 +20,7 @@
       ],
       "js": [
         "viewport.js",
+        "appui.js",
         "content.js",
         "app-bridge.js"
       ],
