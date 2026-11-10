@@ -146,6 +146,39 @@ class MainActivity : AppCompatActivity() {
         pendingUrl = null
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 다른 앱 쓰는 동안 화면이 꺼졌으면 다시 켜고, 아니면 다시 활성화
+        if (!mainSession.isOpen) recoverMainSession("돌아왔을 때 꺼져 있음")
+        else mainSession.setActive(true)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (mainSession.isOpen) mainSession.setActive(false)
+    }
+
+    /** 엔진의 화면 부분이 꺼졌을 때(메모리 부족 등): 새로 열고 보던 페이지를 다시 불러옴 */
+    private fun recoverMainSession(reason: String) {
+        android.util.Log.w("Malkkeum", "화면 복구: $reason")
+        val url = currentUrl ?: home
+        geckoView.post {
+            try { if (mainSession.isOpen) mainSession.close() } catch (e: Exception) { /* 무시 */ }
+            mainSession = GeckoSession().apply {
+                navigationDelegate = navDelegate
+                contentDelegate = makeContentDelegate()
+                open(runtime)
+            }
+            applyPcMode()
+            Gecko.extension?.let { mainSession.webExtensionController.setMessageDelegate(it, messageDelegate, NATIVE_APP) }
+            if (!showingLog) {
+                geckoView.releaseSession()
+                geckoView.setSession(mainSession)
+            }
+            mainSession.loadUri(url)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         val url = urlFromIntent(intent) ?: return
@@ -304,6 +337,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeContentDelegate() = object : GeckoSession.ContentDelegate {
+        override fun onCrash(session: GeckoSession) {
+            if (session === mainSession) recoverMainSession("엔진 오류")
+        }
+
+        override fun onKill(session: GeckoSession) {
+            if (session === mainSession) recoverMainSession("메모리 부족으로 꺼짐")
+        }
+
         override fun onFullScreen(session: GeckoSession, fullScreen: Boolean) {
             this@MainActivity.fullScreen = fullScreen
             val controller = WindowCompat.getInsetsController(window, window.decorView)
