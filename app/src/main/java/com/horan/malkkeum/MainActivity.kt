@@ -136,11 +136,6 @@ class MainActivity : AppCompatActivity() {
         pendingUrl = null
     }
 
-    override fun onResume() {
-        super.onResume()
-        Updater.resumePendingInstall(this)
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         val url = urlFromIntent(intent) ?: return
