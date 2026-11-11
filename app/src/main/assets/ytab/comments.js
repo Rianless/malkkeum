@@ -224,6 +224,11 @@
 
   let state = { mode: 'top', next: null, loading: false, videoKey: '', kind: 'MWEB' };
 
+  function setMsg(list, text) {
+    const d = document.createElement('div');
+    d.className = 'msg'; d.textContent = text;
+    list.replaceChildren(d);
+  }
   let uiFailLogged = '';
   function uiFail(reason) {
     const k = location.pathname + ':' + reason;
@@ -243,7 +248,13 @@
       if (bar) bar.remove();
       bar = document.createElement('div');
       bar.id = 'malkkeum-sort';
-      bar.innerHTML = '<button data-m="top" class="on">인기순</button><button data-m="new">최신순</button>';
+      // 유튜브 보안 규칙(Trusted Types) 때문에 innerHTML 대신 부품을 하나씩 만들어 붙임
+      for (const [m, label] of [['top', '인기순'], ['new', '최신순']]) {
+        const b = document.createElement('button');
+        b.dataset.m = m; b.textContent = label;
+        if (m === 'top') b.className = 'on';
+        bar.appendChild(b);
+      }
       bar.addEventListener('click', ev => {
         const b = ev.target.closest('button');
         if (b) setMode(b.dataset.m, sheet, bar);
@@ -281,7 +292,7 @@
       });
     }
     ensureUI();
-    list.innerHTML = '<div class="msg">최신 댓글 불러오는 중…</div>';
+    setMsg(list, '최신 댓글 불러오는 중…');
     let item = sortItems && (sortItems.find(x => /최신|new/i.test(x.title)) || sortItems[1]);
     state.kind = 'MWEB';
     if (!item) {
@@ -294,11 +305,11 @@
       }
     }
     if (!item) {
-      list.innerHTML = '<div class="msg">이 영상은 최신순 댓글을 불러오지 못했어요.</div>';
+      setMsg(list, '이 영상은 최신순 댓글을 불러오지 못했어요.');
       return;
     }
     state.next = item.token;
-    list.innerHTML = '';
+    list.replaceChildren();
     await loadMore(list);
   }
 
@@ -309,11 +320,11 @@
       const { list: items, next } = await fetchComments(state.next, state.kind);
       state.next = next;
       for (const c of items) list.appendChild(renderComment(c));
-      if (!items.length && !list.children.length) list.innerHTML = '<div class="msg">댓글을 불러오지 못했어요.</div>';
+      if (!items.length && !list.children.length) setMsg(list, '댓글을 불러오지 못했어요.');
       report('댓글정렬', `최신순 ${items.length}개`);
     } catch (e) {
       report('댓글정렬오류', String(e && e.message || e));
-      if (!list.children.length) list.innerHTML = '<div class="msg">댓글을 불러오지 못했어요.</div>';
+      if (!list.children.length) setMsg(list, '댓글을 불러오지 못했어요.');
     } finally {
       state.loading = false;
     }
@@ -332,5 +343,5 @@
     return row;
   }
 
-  setInterval(ensureUI, 400);
+  setInterval(() => { try { ensureUI(); } catch (e) { uiFail('오류 ' + (e && e.message || e)); } }, 400);
 })();

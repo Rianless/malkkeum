@@ -129,7 +129,7 @@
 
   function diagText() {
     const s = state.settings;
-    const head = `[말끔 진단] 방식:${s.method === 'skip' ? '빨리 넘기기' : '미리 제거'} 모드:${s.mode} 지울항목:${(s.stripKeys || []).join(',') || '없음'}`;
+    const head = `[말끔 진단 v${(chrome.runtime.getManifest() || {}).version || '?'}] 방식:${s.method === 'skip' ? '빨리 넘기기' : '미리 제거'} 모드:${s.mode} 지울항목:${(s.stripKeys || []).join(',') || '없음'}`;
     const lines = (state.diag || []).map(i => (i.e === 'nav' ? '\n' : '') + `${String(i.t).padStart(6)}  ${i.e}  ${i.d}`);
     return lines.length ? head + '\n' + lines.join('\n') : '';
   }
