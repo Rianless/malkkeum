@@ -28,20 +28,30 @@
   }
 
   // ---------- 2. 최신 댓글 불러오기 ----------
-  function cfg() { return (window.ytcfg && window.ytcfg.data_) || {}; }
+  // 유튜브 설정값 읽기 (ytcfg.get 우선, 없으면 data_)
+  function cfgGet(k) {
+    try { if (window.ytcfg && typeof window.ytcfg.get === 'function') { const v = window.ytcfg.get(k); if (v !== undefined) return v; } } catch (e) { /* 무시 */ }
+    try { return window.ytcfg && window.ytcfg.data_ && window.ytcfg.data_[k]; } catch (e) { return undefined; }
+  }
+  function cfg() {
+    return {
+      INNERTUBE_API_KEY: cfgGet('INNERTUBE_API_KEY'),
+      INNERTUBE_CONTEXT: cfgGet('INNERTUBE_CONTEXT'),
+      INNERTUBE_CONTEXT_CLIENT_NAME: cfgGet('INNERTUBE_CONTEXT_CLIENT_NAME'),
+      INNERTUBE_CLIENT_VERSION: cfgGet('INNERTUBE_CLIENT_VERSION')
+    };
+  }
 
-  // 모바일(MWEB) 또는 PC(WEB) 방식으로 유튜브에 요청
+  // 모바일(MWEB) 또는 PC(WEB) 방식 요청에 쓸 기본 정보 (항상 client가 있는 객체를 돌려줌)
   function clientContext(kind) {
     const c = cfg();
-    const base = (c.INNERTUBE_CONTEXT && c.INNERTUBE_CONTEXT.client) || {};
-    if (kind !== 'WEB') return c.INNERTUBE_CONTEXT;
-    return {
-      client: {
-        clientName: 'WEB',
-        clientVersion: String(base.clientVersion || c.INNERTUBE_CLIENT_VERSION || '2.20261101.00.00').replace(/^\d+\./, '2.'),
-        hl: base.hl || 'ko', gl: base.gl || 'KR'
-      }
-    };
+    const ctx = c.INNERTUBE_CONTEXT || {};
+    const base = ctx.client || {};
+    if (kind === 'WEB') {
+      return { client: { clientName: 'WEB', clientVersion: '2.20261101.00.00', hl: base.hl || 'ko', gl: base.gl || 'KR' } };
+    }
+    const client = Object.assign({ clientName: 'MWEB', clientVersion: String(c.INNERTUBE_CLIENT_VERSION || '2.20261101.01.00'), hl: base.hl || 'ko', gl: base.gl || 'KR' }, base);
+    return Object.assign({}, ctx, { client });
   }
   async function innertube(endpoint, body, kind) {
     const c = cfg();
@@ -229,6 +239,14 @@
     d.className = 'msg'; d.textContent = text;
     list.replaceChildren(d);
   }
+  // 실패하면 안내를 잠깐 보여주고 원래 댓글(인기순)로 돌아감 → 원래 목록 스크롤도 다시 됨
+  function failBack(list, bar, text) {
+    setMsg(list, text);
+    setTimeout(() => {
+      cleanup();
+      if (bar) bar.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === 'top'));
+    }, 1500);
+  }
   let uiFailLogged = '';
   function uiFail(reason) {
     const k = location.pathname + ':' + reason;
@@ -268,7 +286,8 @@
     if (list) {
       const sr = sheet.getBoundingClientRect(), br = bar.getBoundingClientRect();
       list.style.top = (br.bottom - sr.top) + 'px';
-      list.style.background = getComputedStyle(sheet).backgroundColor || '#fff';
+      const sbg = getComputedStyle(sheet).backgroundColor;
+      list.style.background = (sbg && sbg !== 'rgba(0, 0, 0, 0)' && sbg !== 'transparent') ? sbg : 'var(--yt-spec-base-background, #fff)';
     }
   }
 
@@ -304,10 +323,7 @@
         report('댓글정렬오류', String(e && e.message || e));
       }
     }
-    if (!item) {
-      setMsg(list, '이 영상은 최신순 댓글을 불러오지 못했어요.');
-      return;
-    }
+    if (!item) { failBack(list, bar, '최신순 댓글을 불러오지 못했어요. 인기순으로 돌아가요.'); return; }
     state.next = item.token;
     list.replaceChildren();
     await loadMore(list);
@@ -320,11 +336,11 @@
       const { list: items, next } = await fetchComments(state.next, state.kind);
       state.next = next;
       for (const c of items) list.appendChild(renderComment(c));
-      if (!items.length && !list.children.length) setMsg(list, '댓글을 불러오지 못했어요.');
+      if (!items.length && !list.children.length) failBack(list, document.getElementById('malkkeum-sort'), '최신 댓글이 없거나 불러오지 못했어요.');
       report('댓글정렬', `최신순 ${items.length}개`);
     } catch (e) {
       report('댓글정렬오류', String(e && e.message || e));
-      if (!list.children.length) setMsg(list, '댓글을 불러오지 못했어요.');
+      if (!list.children.length) failBack(list, document.getElementById('malkkeum-sort'), '최신순 댓글을 불러오지 못했어요. 인기순으로 돌아가요.');
     } finally {
       state.loading = false;
     }
