@@ -23,7 +23,7 @@
   /* 위쪽 머리: 흰색→회색 그라데이션 + 아래 회색 줄 */
   html[data-malkkeum-retro] ytm-mobile-topbar-renderer, html[data-malkkeum-retro] .mobile-topbar-header,
   html[data-malkkeum-retro] header.mobile-topbar-header, html[data-malkkeum-retro] #masthead-container, html[data-malkkeum-retro] ytd-masthead {
-    background: linear-gradient(#ffffff, #e6e6e6) !important; border-bottom: 3px solid #cccccc !important; box-shadow: none !important;
+    background: linear-gradient(#ffffff, #e6e6e6) !important; border-bottom: 1px solid #b5b5b5 !important; box-shadow: none !important;
   }
 
   /* 제목은 파란 밑줄 링크 */
@@ -37,14 +37,21 @@
     color:#666 !important; font-size: 11px !important;
   }
 
-  /* 썸네일: 둥근 모서리 없이 회색 테두리 + 흰 여백 */
+  /* 썸네일: 둥근 모서리 없이 회색 테두리 + 흰 여백
+     (크기에 영향 없는 outline/box-shadow로만 그림: padding·border를 주면 비율 칸이 무너져 썸네일이 납작해짐) */
   html[data-malkkeum-retro] ytm-thumbnail-cover, html[data-malkkeum-retro] .video-thumbnail-container-large,
   html[data-malkkeum-retro] .media-item-thumbnail-container, html[data-malkkeum-retro] yt-thumbnail-view-model,
-  html[data-malkkeum-retro] ytd-thumbnail, html[data-malkkeum-retro] .yt-thumbnail-view-model {
-    border-radius: 0 !important; border: 1px solid #999 !important; padding: 2px !important; background:#fff !important; box-sizing: border-box !important;
+  html[data-malkkeum-retro] ytd-thumbnail, html[data-malkkeum-retro] .yt-thumbnail-view-model,
+  html[data-malkkeum-retro] .shortsLockupViewModelHostThumbnailContainer, html[data-malkkeum-retro] [class*="ShortsLockupViewModelHostThumbnailContainer"] {
+    border-radius: 0 !important;
+  }
+  html[data-malkkeum-retro] .media-item-thumbnail-container, html[data-malkkeum-retro] .video-thumbnail-container-large,
+  html[data-malkkeum-retro] yt-thumbnail-view-model, html[data-malkkeum-retro] ytd-thumbnail,
+  html[data-malkkeum-retro] .shortsLockupViewModelHostThumbnailContainer, html[data-malkkeum-retro] [class*="ShortsLockupViewModelHostThumbnailContainer"] {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 3px #999 !important;
   }
   html[data-malkkeum-retro] img { border-radius: 0 !important; }
-  html[data-malkkeum-retro] .ytm-profile-icon img, html[data-malkkeum-retro] yt-avatar-shape img { border-radius: 0 !important; border: 1px solid #999 !important; }
+  html[data-malkkeum-retro] .ytm-profile-icon img, html[data-malkkeum-retro] yt-avatar-shape img { outline: 1px solid #999 !important; outline-offset: -1px; }
 
   /* 목록 칸 사이 점선 구분 */
   html[data-malkkeum-retro] ytm-rich-item-renderer, html[data-malkkeum-retro] ytm-video-with-context-renderer,
@@ -52,14 +59,19 @@
     border-bottom: 1px dotted #cccccc !important; padding-bottom: 8px !important; margin-bottom: 8px !important;
   }
 
-  /* 카테고리 칩 → 옛날 파란 탭 */
-  html[data-malkkeum-retro] ytm-chip-cloud-chip-renderer, html[data-malkkeum-retro] yt-chip-cloud-chip-renderer,
-  html[data-malkkeum-retro] .chip-container {
-    border-radius: 4px 4px 0 0 !important; border: 1px solid #a9c1e8 !important; border-bottom: 0 !important;
+  /* 카테고리 칩 → 옛날 파란 탭 (안쪽 칸 하나만 칠함: 겉칸까지 칠하면 이중 상자가 됨) */
+  html[data-malkkeum-retro] ytm-chip-cloud-chip-renderer, html[data-malkkeum-retro] yt-chip-cloud-chip-renderer {
+    background: transparent !important; border: 0 !important; box-shadow: none !important;
+  }
+  html[data-malkkeum-retro] ytm-chip-cloud-chip-renderer .chip-container, html[data-malkkeum-retro] yt-chip-cloud-chip-renderer #chip-shape-container,
+  html[data-malkkeum-retro] yt-chip-cloud-chip-renderer .ytChipShapeChip, html[data-malkkeum-retro] ytm-chip-cloud-chip-renderer .ytChipShapeChip {
+    border-radius: 4px 4px 0 0 !important; border: 1px solid #a9c1e8 !important; border-bottom-color: #8fb0e3 !important;
     background: linear-gradient(#f2f7ff, #c9dbf7) !important; color:#0033cc !important; font-weight: bold !important;
   }
-  html[data-malkkeum-retro] ytm-chip-cloud-chip-renderer[chip-style*="SELECTED"], html[data-malkkeum-retro] .selected .chip-container,
-  html[data-malkkeum-retro] yt-chip-cloud-chip-renderer[selected] {
+  html[data-malkkeum-retro] ytm-chip-cloud-chip-renderer.selected .chip-container, html[data-malkkeum-retro] .selected .chip-container,
+  html[data-malkkeum-retro] ytm-chip-cloud-chip-renderer[chip-style*="SELECTED"] .chip-container,
+  html[data-malkkeum-retro] yt-chip-cloud-chip-renderer[selected] #chip-shape-container,
+  html[data-malkkeum-retro] .ytChipShapeActive {
     background: linear-gradient(#ffffff, #e2e2e2) !important; border-color:#bbbbbb !important; color:#333 !important;
   }
 
