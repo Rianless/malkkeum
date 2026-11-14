@@ -27,6 +27,7 @@
     $('#enabled').checked = s.enabled;
     document.querySelectorAll('input[name=mode]').forEach(r => { r.checked = r.value === s.mode; });
     document.querySelectorAll('input[name=method]').forEach(r => { r.checked = r.value === s.method; });
+    document.querySelectorAll('input[name=theme]').forEach(r => { r.checked = r.value === (s.theme || 'default'); });
     const mb = document.getElementById('method-box');
     if (mb) {
       mb.classList.toggle('dim', s.mode !== 'all');
@@ -88,6 +89,8 @@
     r.addEventListener('change', e => save({ mode: e.target.value })));
   document.querySelectorAll('input[name=method]').forEach(r =>
     r.addEventListener('change', e => save({ method: e.target.value })));
+  document.querySelectorAll('input[name=theme]').forEach(r =>
+    r.addEventListener('change', e => save({ theme: e.target.value })));
 
   $('#cats').addEventListener('change', e => {
     const id = e.target.dataset.cat;

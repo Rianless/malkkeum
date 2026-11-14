@@ -16,7 +16,7 @@
       const d = await browser.storage.local.get(['settings', 'stats']);
       const s = Object.assign({}, DEFAULTS, d.settings);
       const st = d.stats || {};
-      port.postMessage({ type: 'state', enabled: !!s.enabled, mode: s.mode, blocked: st.blocked || 0 });
+      port.postMessage({ type: 'state', enabled: !!s.enabled, mode: s.mode, blocked: st.blocked || 0, theme: s.theme || 'default' });
     } catch (e) { /* 무시 */ }
   }
 

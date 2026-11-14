@@ -158,6 +158,46 @@ class MainActivity : AppCompatActivity() {
         if (mainSession.isOpen) mainSession.setActive(false)
     }
 
+    // ---------- 옛날 유튜브 테마: 위쪽 막대도 그 시절 느낌으로 ----------
+    private var retroApplied: Boolean? = null
+    private fun applyTheme(retro: Boolean) {
+        if (retroApplied == retro) return
+        retroApplied = retro
+        val title = findViewById<TextView>(R.id.titleLogo)
+        if (retro) {
+            // 'Malk' 검은 글씨 + 'keum' 빨간 상자 안 흰 글씨, 회색 그라데이션 막대
+            val sp = android.text.SpannableString("Malk keum ")
+            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.WHITE), 5, 10, 0)
+            sp.setSpan(android.text.style.BackgroundColorSpan(android.graphics.Color.parseColor("#CC0000")), 4, 10, 0)
+            title.text = sp
+            title.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+            title.letterSpacing = -0.02f
+            title.setTextColor(android.graphics.Color.BLACK)
+            topBar.background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(android.graphics.Color.WHITE, android.graphics.Color.parseColor("#E2E2E2"))
+            )
+            listOf(pcButton, logButton).forEach {
+                it.setTextColor(android.graphics.Color.parseColor("#0033CC"))
+                it.paintFlags = it.paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+            }
+        } else {
+            title.setText(R.string.title_logo)
+            title.typeface = androidx.core.content.res.ResourcesCompat.getFont(this, R.font.roboto_bold)
+            title.letterSpacing = -0.04f
+            val tv = android.util.TypedValue()
+            theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, tv, true)
+            title.setTextColor(tv.data)
+            theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, tv, true)
+            topBar.setBackgroundColor(tv.data)
+            theme.resolveAttribute(com.google.android.material.R.attr.colorPrimary, tv, true)
+            listOf(pcButton, logButton).forEach {
+                it.setTextColor(tv.data)
+                it.paintFlags = it.paintFlags and android.graphics.Paint.UNDERLINE_TEXT_FLAG.inv()
+            }
+        }
+    }
+
     /** 엔진의 화면 부분이 꺼졌을 때(메모리 부족 등): 새로 열고 보던 페이지를 다시 불러옴 */
     private fun recoverMainSession(reason: String) {
         android.util.Log.w("Malkkeum", "화면 복구: $reason")
@@ -282,6 +322,7 @@ class MainActivity : AppCompatActivity() {
             toggle.isChecked = enabled
             updatingToggle = false
             counter.text = if (enabled) getString(R.string.blocked_count, blocked) else getString(R.string.block_off)
+            applyTheme(json.optString("theme", "default") == "retro")
         }
 
         override fun onDisconnect(port: WebExtension.Port) {
