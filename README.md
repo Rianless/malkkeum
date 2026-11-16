@@ -37,3 +37,13 @@ app/src/main/java/...      안드로이드 앱 (GeckoView)
 ```
 
 광고 분석 규칙을 고칠 때는 `extension/`과 `app/src/main/assets/ytab/`의 같은 파일을 함께 고쳐주세요.
+
+## 아이폰에서 쓰기 (사파리 + Userscripts 앱)
+
+1. App Store에서 무료 앱 **Userscripts** 설치 (iOS 15.1 이상)
+2. 설정 › Safari › 확장 프로그램 › **Userscripts** 켜기, 모든 웹사이트 허용
+3. 사파리로 `https://raw.githubusercontent.com/Rianless/malkkeum/main/ios/malkkeum.user.js` 열기 → 주소창 퍼즐(확장) 아이콘 › Userscripts › **설치**
+4. 사파리에서 `m.youtube.com` 접속
+
+광고 없는 영상 요청, 광고·스폰서 칸 제거, 댓글 최신순이 들어 있어요. 차단 스위치·기록 화면·옛날 테마는 안드로이드 앱 전용이에요.
+`ios/malkkeum.user.js`는 `scripts/build-userscript.sh`로 만들어요.
