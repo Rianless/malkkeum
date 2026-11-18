@@ -108,6 +108,18 @@
   setInterval(() => {
     if (diagBuf.length) { report({ type: 'diag', items: diagBuf }); diagBuf = []; }
   }, 1000);
+  // 페이지 오류와 화면 상태 기록 (하얀 화면 원인 찾기용)
+  window.addEventListener('error', e => { try { diag('페이지오류', String(e.message || e.error || '').slice(0, 160) + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno); } catch (x) { /* 무시 */ } });
+  window.addEventListener('unhandledrejection', e => { try { const r = e.reason; diag('페이지오류', 'promise ' + String(r && (r.stack || r.message) || r).slice(0, 160)); } catch (x) { /* 무시 */ } });
+  function screenCheck() {
+    try {
+      const app = document.querySelector('ytm-app, ytd-app');
+      const body = document.body;
+      const items = document.querySelectorAll('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer, ytm-item-section-renderer').length;
+      diag('화면상태', `창${innerWidth}x${innerHeight} app:${app ? app.tagName.toLowerCase() + ' h' + Math.round(app.getBoundingClientRect().height) : '없음'} body h${body ? body.scrollHeight : 0} 항목${items} ${document.readyState}`);
+    } catch (x) { /* 무시 */ }
+  }
+  setTimeout(screenCheck, 3000);
   let lastHref = location.href;
   setInterval(() => {
     if (location.href !== lastHref) {
@@ -119,6 +131,7 @@
       guardLogged = false;
       nudged = false;
       diag('nav', location.pathname + location.search.slice(0, 20));
+      setTimeout(screenCheck, 3000);
     }
   }, 100);
   let nudged = false;

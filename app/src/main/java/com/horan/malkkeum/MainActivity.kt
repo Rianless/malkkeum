@@ -296,6 +296,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var currentUrl: String? = null
+    private val redirectTimes = mutableListOf<Long>()
+    private var redirectWarned = false
 
     // ---------- 기록·설정 화면 (확장 프로그램 페이지) ----------
     private fun showLog() {
@@ -385,6 +387,17 @@ class MainActivity : AppCompatActivity() {
             val host = Uri.parse(request.uri).host?.lowercase() ?: return null
             val wrong = (pcMode && host == "m.youtube.com") || (!pcMode && host == "www.youtube.com")
             if (!wrong) return null
+            // 유튜브가 계속 다른 버전으로 보내면(넓은 화면 등) 되돌리기를 멈추고 그대로 열어줌 (무한 반복 → 하얀 화면 방지)
+            val now = System.currentTimeMillis()
+            redirectTimes.removeAll { now - it > 10_000 }
+            redirectTimes.add(now)
+            if (redirectTimes.size > 2) {
+                if (!redirectWarned) {
+                    redirectWarned = true
+                    geckoView.post { Toast.makeText(this@MainActivity, "유튜브가 다른 버전 화면으로 보내서 그대로 열었어요", Toast.LENGTH_LONG).show() }
+                }
+                return null
+            }
             val fixed = toSiteUrl(request.uri)
             geckoView.post { mainSession.loadUri(fixed) }
             return GeckoResult.fromValue(AllowOrDeny.DENY)
