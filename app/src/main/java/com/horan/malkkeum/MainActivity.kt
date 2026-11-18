@@ -131,6 +131,8 @@ class MainActivity : AppCompatActivity() {
             }
             start()
         }
+        showLastCrash()
+
         // 새 버전 확인 (제목을 길게 누르면 직접 확인)
         Updater.check(this)
         findViewById<View>(R.id.titleLogo).setOnLongClickListener { Updater.check(this, manual = true); true }
@@ -217,6 +219,24 @@ class MainActivity : AppCompatActivity() {
             }
             mainSession.loadUri(url)
         }
+    }
+
+    /** 지난번에 앱이 갑자기 꺼졌으면 그 이유를 보여주고 복사할 수 있게 함 */
+    private fun showLastCrash() {
+        val f = java.io.File(filesDir, "last_crash.txt")
+        if (!f.exists()) return
+        val text = try { f.readText() } catch (e: Exception) { return }
+        f.delete()
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("지난번에 앱이 갑자기 꺼졌어요")
+            .setMessage("아래 '복사'를 눌러 기록을 대화창에 붙여넣어 주시면 원인을 찾을 수 있어요.\n\n" + text.take(1500))
+            .setPositiveButton("복사") { _, _ ->
+                val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("말끔 오류 기록", text))
+                Toast.makeText(this, "복사했어요", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("닫기", null)
+            .show()
     }
 
     override fun onNewIntent(intent: Intent) {
