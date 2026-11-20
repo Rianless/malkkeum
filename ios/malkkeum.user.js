@@ -330,11 +330,16 @@
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
   // enforcementMessageViewModel = "광고 차단기 사용 중" 경고창
   const AD_KEYS = ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams', 'adBreakParams', 'enforcementMessageViewModel'];
-  const AD_RE = /"(adPlacements|playerAds|adSlots|adBreakHeartbeatParams|adBreakParams|enforcementMessageViewModel|adSlotRenderer|promotedSparklesWebRenderer|searchPyvRenderer|statementBannerRenderer|promotedVideoRenderer|compactPromotedVideoRenderer|inFeedAdLayoutRenderer)"/;
+  const AD_RE = /"(adPlacements|playerAds|adSlots|adBreakHeartbeatParams|adBreakParams|enforcementMessageViewModel|adSlotRenderer|promotedSparklesWebRenderer|searchPyvRenderer|statementBannerRenderer|promotedVideoRenderer|compactPromotedVideoRenderer|inFeedAdLayoutRenderer|adClientParams|reelPlayerAdRenderer|adsEngagementPanelContentRenderer)"/;
 
   // 홈·검색·추천 목록에 끼어 있는 광고 칸 (목록에서 통째로 빼버림)
   function isFeedAd(o) {
     if (!o || typeof o !== 'object') return false;
+    // 쇼츠 사이에 끼는 광고 칸 (넘기다 보면 나오는 광고)
+    const rwe = o.command && o.command.reelWatchEndpoint;
+    if (rwe && (rwe.adClientParams || (rwe.overlay && rwe.overlay.reelPlayerOverlayRenderer && rwe.overlay.reelPlayerOverlayRenderer.adBadge))) return true;
+    if (o.reelWatchEndpoint && o.reelWatchEndpoint.adClientParams) return true;
+    if (o.reelPlayerAdRenderer || o.shortsAdRenderer) return true;
     const c = o.richItemRenderer && o.richItemRenderer.content;
     return !!(o.adSlotRenderer || o.promotedSparklesWebRenderer || o.searchPyvRenderer || o.promotedVideoRenderer ||
       o.compactPromotedVideoRenderer || o.inFeedAdLayoutRenderer ||

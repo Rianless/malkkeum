@@ -145,6 +145,22 @@
   (document.head || document.documentElement).appendChild(style);
 
   setInterval(syncShortsComments, 150);
+
+  // ---------- 쇼츠 영상이 위아래로 잘리지 않게: 화면에 '맞춤' (넓은 화면에선 양옆이 검게) ----------
+  const fitStyle = document.createElement('style');
+  fitStyle.textContent = `
+    html[data-malkkeum-shorts] video {
+      object-fit: contain !important; width: 100% !important; height: 100% !important;
+      top: 0 !important; left: 0 !important; transform: none !important; background: #000 !important;
+    }
+  `;
+  (document.head || document.documentElement).appendChild(fitStyle);
+  function markShorts() {
+    if (isShorts()) document.documentElement.setAttribute('data-malkkeum-shorts', '');
+    else document.documentElement.removeAttribute('data-malkkeum-shorts');
+  }
+  markShorts();
+  setInterval(markShorts, 300);
   // 화면을 만지거나 쓸어내릴 때 바로 확인
   for (const ev of ['touchend', 'click', 'transitionend', 'animationend']) {
     document.addEventListener(ev, () => { setTimeout(syncShortsComments, 30); setTimeout(syncShortsComments, 180); }, true);
