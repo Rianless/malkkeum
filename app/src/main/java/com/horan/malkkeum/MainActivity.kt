@@ -297,6 +297,13 @@ class MainActivity : AppCompatActivity() {
 
     private var currentUrl: String? = null
     private val redirectTimes = mutableListOf<Long>()
+
+    // 쇼츠를 볼 때는 말끔 위쪽 막대를 숨겨서 영상이 잘리지 않게 함 (유튜브 앱처럼 화면 가득)
+    private fun isShortsUrl(url: String?) = url?.let { Uri.parse(it).path?.startsWith("/shorts") } == true
+    private fun updateTopBar() {
+        val hide = fullScreen || (!showingLog && isShortsUrl(currentUrl))
+        topBar.visibility = if (hide) View.GONE else View.VISIBLE
+    }
     private var redirectWarned = false
 
     // ---------- 기록·설정 화면 (확장 프로그램 페이지) ----------
@@ -322,6 +329,7 @@ class MainActivity : AppCompatActivity() {
         geckoView.setSession(mainSession)
         showingLog = false
         logButton.setText(R.string.log)
+        updateTopBar()
     }
 
     // ---------- 확장 프로그램과 주고받기 ----------
@@ -371,7 +379,10 @@ class MainActivity : AppCompatActivity() {
             perms: MutableList<GeckoSession.PermissionDelegate.ContentPermission>,
             hasUserGesture: Boolean
         ) {
-            if (session === mainSession) currentUrl = url
+            if (session === mainSession) {
+                currentUrl = url
+                updateTopBar()
+            }
         }
 
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
@@ -428,7 +439,7 @@ class MainActivity : AppCompatActivity() {
                 controller.hide(WindowInsetsCompat.Type.systemBars())
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             } else {
-                topBar.visibility = View.VISIBLE
+                updateTopBar()
                 controller.show(WindowInsetsCompat.Type.systemBars())
                 controller.isAppearanceLightStatusBars = false
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
