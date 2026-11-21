@@ -42,6 +42,18 @@
   setInterval(() => {
     if (diagBuf.length) { report({ type: 'diag', items: diagBuf }); diagBuf = []; }
   }, 1000);
+  // 페이지 오류와 화면 상태 기록 (하얀 화면 원인 찾기용)
+  window.addEventListener('error', e => { try { diag('페이지오류', String(e.message || e.error || '').slice(0, 160) + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno); } catch (x) { /* 무시 */ } });
+  window.addEventListener('unhandledrejection', e => { try { const r = e.reason; diag('페이지오류', 'promise ' + String(r && (r.stack || r.message) || r).slice(0, 160)); } catch (x) { /* 무시 */ } });
+  function screenCheck() {
+    try {
+      const app = document.querySelector('ytm-app, ytd-app');
+      const body = document.body;
+      const items = document.querySelectorAll('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer, ytm-item-section-renderer').length;
+      diag('화면상태', `창${innerWidth}x${innerHeight} app:${app ? app.tagName.toLowerCase() + ' h' + Math.round(app.getBoundingClientRect().height) : '없음'} body h${body ? body.scrollHeight : 0} 항목${items} ${document.readyState}`);
+    } catch (x) { /* 무시 */ }
+  }
+  setTimeout(screenCheck, 3000);
   let lastHref = location.href;
   setInterval(() => {
     if (location.href !== lastHref) {
@@ -53,6 +65,7 @@
       guardLogged = false;
       nudged = false;
       diag('nav', location.pathname + location.search.slice(0, 20));
+      setTimeout(screenCheck, 3000);
     }
   }, 100);
   let nudged = false;
@@ -251,11 +264,16 @@
   // 광고 정보가 데이터 깊숙이 들어 있어도 전부 찾아 지움. 일부만 남으면 플레이어가 광고를 기다리며 멈추기 때문.
   // enforcementMessageViewModel = "광고 차단기 사용 중" 경고창
   const AD_KEYS = ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams', 'adBreakParams', 'enforcementMessageViewModel'];
-  const AD_RE = /"(adPlacements|playerAds|adSlots|adBreakHeartbeatParams|adBreakParams|enforcementMessageViewModel|adSlotRenderer|promotedSparklesWebRenderer|searchPyvRenderer|statementBannerRenderer|promotedVideoRenderer|compactPromotedVideoRenderer|inFeedAdLayoutRenderer)"/;
+  const AD_RE = /"(adPlacements|playerAds|adSlots|adBreakHeartbeatParams|adBreakParams|enforcementMessageViewModel|adSlotRenderer|promotedSparklesWebRenderer|searchPyvRenderer|statementBannerRenderer|promotedVideoRenderer|compactPromotedVideoRenderer|inFeedAdLayoutRenderer|adClientParams|reelPlayerAdRenderer|adsEngagementPanelContentRenderer)"/;
 
   // 홈·검색·추천 목록에 끼어 있는 광고 칸 (목록에서 통째로 빼버림)
   function isFeedAd(o) {
     if (!o || typeof o !== 'object') return false;
+    // 쇼츠 사이에 끼는 광고 칸 (넘기다 보면 나오는 광고)
+    const rwe = o.command && o.command.reelWatchEndpoint;
+    if (rwe && (rwe.adClientParams || (rwe.overlay && rwe.overlay.reelPlayerOverlayRenderer && rwe.overlay.reelPlayerOverlayRenderer.adBadge))) return true;
+    if (o.reelWatchEndpoint && o.reelWatchEndpoint.adClientParams) return true;
+    if (o.reelPlayerAdRenderer || o.shortsAdRenderer) return true;
     const c = o.richItemRenderer && o.richItemRenderer.content;
     return !!(o.adSlotRenderer || o.promotedSparklesWebRenderer || o.searchPyvRenderer || o.promotedVideoRenderer ||
       o.compactPromotedVideoRenderer || o.inFeedAdLayoutRenderer ||
@@ -263,6 +281,30 @@
       (o.richSectionRenderer && o.richSectionRenderer.content && o.richSectionRenderer.content.statementBannerRenderer));
   }
   let pendingStripped = 0;
+
+  // ---------- 댓글 정렬 정보 (모바일 댓글에 인기순·최신순 버튼용, comments.js로 넘겨줌) ----------
+  function sortToken(o, depth = 0) {
+    if (!o || typeof o !== 'object' || depth > 12) return null;
+    if (o.continuationCommand && o.continuationCommand.token) return o.continuationCommand.token;
+    if (o.reloadContinuationData && o.reloadContinuationData.continuation) return o.reloadContinuationData.continuation;
+    for (const k in o) { const t = sortToken(o[k], depth + 1); if (t) return t; }
+    return null;
+  }
+  function collectSort(o, depth = 0) {
+    if (!o || typeof o !== 'object' || depth > 40) return;
+    const sm = o.sortFilterSubMenuRenderer;
+    if (sm && Array.isArray(sm.subMenuItems)) {
+      const items = sm.subMenuItems.map(it => ({
+        title: it.title || (it.text && it.text.simpleText) || '',
+        token: sortToken(it.serviceEndpoint || it.continuation || it),
+        selected: !!it.selected
+      })).filter(x => x.token);
+      if (items.length) document.dispatchEvent(new CustomEvent('malkkeum-sort', { detail: items }));
+      return;
+    }
+    for (const k in o) { const v = o[k]; if (v && typeof v === 'object') collectSort(v, depth + 1); }
+  }
+  const SORT_MARK = 'sortFilterSubMenuRenderer';
 
   const isPlayerObj = o => !!(o.videoDetails || o.playabilityStatus || o.streamingData);
 
@@ -317,6 +359,7 @@
   // (1) 페이지가 JSON 글자를 객체로 바꿀 때
   patchMethod(JSON, 'parse', real => function parse(...args) {
     const r = real.apply(this, args);
+    try { if (typeof args[0] === 'string' && args[0].includes(SORT_MARK)) collectSort(r); } catch (e) { /* 무시 */ }
     try {
       if (shouldStrip() && typeof args[0] === 'string' && AD_RE.test(args[0])) {
         foundKeys = [];
@@ -335,6 +378,7 @@
     const r = await real.apply(this, args);
     try {
       const api = API_RE.exec(this.url || '');
+      if (api) collectSort(r);
       foundKeys = [];
       if (shouldStrip()) strip(r);
       if (api) diag('응답', describe(r, 'fetch.json ' + api[1]));
@@ -345,6 +389,7 @@
     const t = await real.apply(this, args);
     try {
       const api = API_RE.exec(this.url || '');
+      if (typeof t === 'string' && t.includes(SORT_MARK)) { try { collectSort(origParse(t)); } catch (e) { /* 무시 */ } }
       if (api) {
         foundKeys = [];
         const out = shouldStrip() ? stripText(t) : t;
@@ -613,6 +658,40 @@
     }
   }, 250);
   document.addEventListener('DOMContentLoaded', hookPlayer);
+
+  // ---------- 2-1. '광고 차단 프로그램은 허용되지 않습니다' 경고창 치우기 ----------
+  // 데이터에서 경고창 정보를 지우지만, 다른 경로로 뜨면 화면에서 바로 닫고 멈춘 영상을 다시 재생
+  const ENFORCE_SEL = 'ytd-enforcement-message-view-model, ytm-enforcement-message-view-model';
+  (function enforceCss() {
+    const st = document.createElement('style');
+    st.textContent = `
+      ytd-enforcement-message-view-model, ytm-enforcement-message-view-model,
+      tp-yt-paper-dialog:has(ytd-enforcement-message-view-model),
+      ytd-popup-container tp-yt-paper-dialog:has(ytd-enforcement-message-view-model) { display: none !important; }
+      body:has(ytd-enforcement-message-view-model) tp-yt-iron-overlay-backdrop { display: none !important; }
+    `;
+    (document.head || document.documentElement).appendChild(st);
+  })();
+  let enforceSeenAt = 0;
+  function clearEnforcement() {
+    if (!settings().enabled) return;
+    const msg = document.querySelector(ENFORCE_SEL);
+    if (!msg) return;
+    const dlg = msg.closest('tp-yt-paper-dialog');
+    if (dlg) dlg.remove(); else msg.remove();
+    document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(b => { b.style.display = 'none'; b.classList.remove('opened'); });
+    document.body && (document.body.style.overflow = '');
+    const now = Date.now();
+    if (now - enforceSeenAt > 5000) diag('경고창제거', location.pathname);
+    enforceSeenAt = now;
+    // 경고 때문에 멈춘 영상 다시 재생
+    const v = document.querySelector('#movie_player video, video');
+    if (v && v.paused && !document.querySelector('.ad-showing')) {
+      try { const p = document.getElementById('movie_player'); p && p.playVideo && p.playVideo(); } catch (e) { /* 무시 */ }
+      try { v.play(); } catch (e) { /* 무시 */ }
+    }
+  }
+  setInterval(clearEnforcement, 500);
 
   // ---------- 3. 배너형/피드 광고 ----------
   const BANNER_SEL = [

@@ -27,6 +27,7 @@
     $('#enabled').checked = s.enabled;
     document.querySelectorAll('input[name=mode]').forEach(r => { r.checked = r.value === s.mode; });
     document.querySelectorAll('input[name=method]').forEach(r => { r.checked = r.value === s.method; });
+    document.querySelectorAll('input[name=theme]').forEach(r => { r.checked = r.value === (s.theme || 'default'); });
     const mb = document.getElementById('method-box');
     if (mb) {
       mb.classList.toggle('dim', s.mode !== 'all');
@@ -88,6 +89,8 @@
     r.addEventListener('change', e => save({ mode: e.target.value })));
   document.querySelectorAll('input[name=method]').forEach(r =>
     r.addEventListener('change', e => save({ method: e.target.value })));
+  document.querySelectorAll('input[name=theme]').forEach(r =>
+    r.addEventListener('change', e => save({ theme: e.target.value })));
 
   $('#cats').addEventListener('change', e => {
     const id = e.target.dataset.cat;
@@ -129,7 +132,7 @@
 
   function diagText() {
     const s = state.settings;
-    const head = `[말끔 진단] 방식:${s.method === 'skip' ? '빨리 넘기기' : '미리 제거'} 모드:${s.mode} 지울항목:${(s.stripKeys || []).join(',') || '없음'}`;
+    const head = `[말끔 진단 v${(chrome.runtime.getManifest() || {}).version || '?'}] 방식:${s.method === 'skip' ? '빨리 넘기기' : '미리 제거'} 모드:${s.mode} 지울항목:${(s.stripKeys || []).join(',') || '없음'}`;
     const lines = (state.diag || []).map(i => (i.e === 'nav' ? '\n' : '') + `${String(i.t).padStart(6)}  ${i.e}  ${i.d}`);
     return lines.length ? head + '\n' + lines.join('\n') : '';
   }

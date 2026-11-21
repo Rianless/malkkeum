@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "유튜브 광고 분석·차단기",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "유튜브 광고를 감지해 광고주·카테고리를 분석하고, 전체 또는 선택한 종류의 광고만 차단합니다.",
   "permissions": [
     "clipboardWrite",
@@ -31,7 +31,8 @@
       ],
       "js": [
         "classifier.js",
-        "inject.js"
+        "inject.js",
+        "comments.js"
       ],
       "run_at": "document_start",
       "world": "MAIN",

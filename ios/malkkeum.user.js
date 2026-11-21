@@ -725,6 +725,40 @@
   }, 250);
   document.addEventListener('DOMContentLoaded', hookPlayer);
 
+  // ---------- 2-1. '광고 차단 프로그램은 허용되지 않습니다' 경고창 치우기 ----------
+  // 데이터에서 경고창 정보를 지우지만, 다른 경로로 뜨면 화면에서 바로 닫고 멈춘 영상을 다시 재생
+  const ENFORCE_SEL = 'ytd-enforcement-message-view-model, ytm-enforcement-message-view-model';
+  (function enforceCss() {
+    const st = document.createElement('style');
+    st.textContent = `
+      ytd-enforcement-message-view-model, ytm-enforcement-message-view-model,
+      tp-yt-paper-dialog:has(ytd-enforcement-message-view-model),
+      ytd-popup-container tp-yt-paper-dialog:has(ytd-enforcement-message-view-model) { display: none !important; }
+      body:has(ytd-enforcement-message-view-model) tp-yt-iron-overlay-backdrop { display: none !important; }
+    `;
+    (document.head || document.documentElement).appendChild(st);
+  })();
+  let enforceSeenAt = 0;
+  function clearEnforcement() {
+    if (!settings().enabled) return;
+    const msg = document.querySelector(ENFORCE_SEL);
+    if (!msg) return;
+    const dlg = msg.closest('tp-yt-paper-dialog');
+    if (dlg) dlg.remove(); else msg.remove();
+    document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(b => { b.style.display = 'none'; b.classList.remove('opened'); });
+    document.body && (document.body.style.overflow = '');
+    const now = Date.now();
+    if (now - enforceSeenAt > 5000) diag('경고창제거', location.pathname);
+    enforceSeenAt = now;
+    // 경고 때문에 멈춘 영상 다시 재생
+    const v = document.querySelector('#movie_player video, video');
+    if (v && v.paused && !document.querySelector('.ad-showing')) {
+      try { const p = document.getElementById('movie_player'); p && p.playVideo && p.playVideo(); } catch (e) { /* 무시 */ }
+      try { v.play(); } catch (e) { /* 무시 */ }
+    }
+  }
+  setInterval(clearEnforcement, 500);
+
   // ---------- 3. 배너형/피드 광고 ----------
   const BANNER_SEL = [
     'ytd-ad-slot-renderer', 'ytd-in-feed-ad-layout-renderer', 'ytd-promoted-sparkles-web-renderer',
