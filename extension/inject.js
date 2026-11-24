@@ -139,7 +139,9 @@
   patchMethod(JSON, 'stringify', real => function stringify(value, ...rest) {
     try {
       const isPlayerReq = value && typeof value === 'object' && value.playbackContext && value.playbackContext.contentPlaybackContext &&
-        (isPC() ? !!value.attestationRequest : (isMobileSite() && !!value.videoId));
+        // PC 유튜브는 요청을 바꾸면 '이 콘텐츠는 이용할 수 없습니다'가 떠서, 모바일에서만 바꿈
+        // (PC는 광고 정보를 지우기만 해도 바로 재생됨)
+        isMobileSite() && !!value.videoId;
       if (isPlayerReq && shouldStripPlayer()) {
         editPlayerRequest(value);
         editedSinceNav = true;
@@ -209,7 +211,7 @@
       aliveFor = location.search;
       diag('판단시작', `${isPC() ? 'PC' : isMobileSite() ? '모바일' : location.hostname} 미리제거:${shouldStripPlayer()}`);
     }
-    if (!isYT() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
+    if (!isMobileSite() || !shouldStripPlayer() || !/\/watch/.test(location.pathname)) return;
     const p = findPlayerApi();
     if (!p) return stop('플레이어 조작 기능 못 찾음');
     let resp, stats, prog;
